@@ -14,7 +14,7 @@ Libraries = [
     {name = "Series", path = 'D:\Media\Libraries\Series'},
 ]
 
-# For use with https://github.com/CuteTenshii/crunchyroll-downloader
+# For use with https://github.com/Arutsuyo/wrapped-crunchyroll-downloader.git
 CRDL_Path = 'A:\Media\Source\CRDL-Scrap\'
 CRDL_Target = 'A:\Media\Source\Video-Raw\'
 CRDL_exe = 'crunchyroll-downloader.exe'
