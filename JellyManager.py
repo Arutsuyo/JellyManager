@@ -1,15 +1,12 @@
-from io import TextIOWrapper
 from pathlib import Path
 import textwrap
 from send2trash import send2trash
 import re
-import os
 import subprocess
 import signal
 import ffmpeg
 import time
 import tomllib
-from contextlib import chdir
 from functools import wraps
 
 def load_config():
