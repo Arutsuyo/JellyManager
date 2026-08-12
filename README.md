@@ -5,7 +5,7 @@ Features:
 - Take Source/Dest directories and encode everything inside into the prefered format
 - Cleanly break from FFMPEG (ctrl+c) and clean up the partially encoded file
 - Process and rename series of episodes to match Jellyfins (and maybe Plex) naming scheme, including metadata tags
-- Extra: Wrap a CLI Crunchyroll Downloader to automatically download episodes and move them into a source folder (needs more documentation)
+- Extra: Wrap a CLI Crunchyroll Downloader to automatically download episodes and move them into a source folder (My personal fork: [CRDL](https://github.com/Arutsuyo/wrapped-crunchyroll-downloader.git))
 
 
 ## ENV Dependencies:
