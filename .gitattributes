@@ -1,0 +1,2 @@
+*.py filter=ignorelines
+*.toml filter=ignorelines

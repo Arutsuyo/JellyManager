@@ -1,0 +1,55 @@
+# config.toml
+title = "Jelly Manager"
+version = "1.0"
+
+
+[Media]
+LogFile = 'A:\Media\JellyManager.txt'
+
+# Directory to move files to while processing
+Staging = 'A:\Media\Staging'
+Libraries = [
+    {name = "Anime", path = 'D:\Media\Libraries\Anime'},
+    {name = "Movies", path = 'D:\Media\Libraries\Movies'},
+    {name = "Series", path = 'D:\Media\Libraries\Series'},
+]
+
+# For use with https://github.com/CuteTenshii/crunchyroll-downloader
+CRDL_Path = 'A:\Media\Source\CRDL-Scrap\'
+CRDL_Target = 'A:\Media\Source\Video-Raw\'
+CRDL_exe = 'crunchyroll-downloader.exe'
+
+# Array of encoding directories
+[[Media.Encoding]]
+# Base path to attach to the pairs
+Base = 'A:\Media\Source'
+    [[Media.Encoding.DirPair]]
+    # Appended to create the source and target directories
+    Source = 'Video-Raw'
+    Target = 'Video-AV1'
+    [[Media.Encoding.DirPair]]
+    Source = 'Music-Raw'
+    Target = 'Music-MP3'
+
+[[Media.Encoding]]
+Base = 'D:\Media'
+    [[Media.Encoding.DirPair]]
+    Source = 'Libraries\RAudible'
+    Target = 'Libraries\EAudible'
+    
+
+[DirectoryManager]
+MovieFile_Exts = [".mkv", ".mp4", ".webm", ".avi", ".mov"]
+AudioFile_Exts = [".mp3", ".flac", ".aac", ".alac", ".wav", ".m4b"]
+# Keep this along side the video files if named the same
+Match_Exts = [
+    ".srt", 
+    ".sub", 
+    ".vtt", 
+    ".ass", 
+    ".ssa", 
+    ".ttml", 
+]
+# Jellyfin server looks for these forlders for specific items
+# Ignore these folders for sorting files
+IgnoreDirs = ["behind the scenes","deleted scenes","interviews","scenes","samples","shorts","featurettes","clips","other","extras","trailers","theme-music","backdrops"]
