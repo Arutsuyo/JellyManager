@@ -1015,6 +1015,9 @@ def main():
             # [2] Processing (Copy Dir to Process, rename series)
             staged_path = ChoseSubDirectory(G_PathHelper.StagingPath)
             if staged_path:
+                userInput = input(f"Do you wish to rename {staged_path.name} (Enter new name, or press enter)? ")
+                if userInput:
+                    staged_path = staged_path.rename(staged_path.with_name(userInput))
                 dirManager = DirectoryManager(staged_path, G_PathHelper.StagingPath)
                 user_input = input("Clean Episode Titles (y)?")
                 if user_input == "y":
