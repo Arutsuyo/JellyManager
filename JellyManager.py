@@ -334,8 +334,8 @@ def GetAudioStreamArgs(AudioStream, StreamNumber:int):
         fallbackTitle = "Japanese"
     if lang == "eng":
         fallbackTitle = "English"
-        
-    out_args.extend([f"-metadata:s:a:{StreamNumber}", f"title=\"{AudioStream["tags"].get("title", fallbackTitle)}\""])
+
+    out_args.extend([f"-metadata:s:a:{StreamNumber}", f"title={AudioStream["tags"].get("title", fallbackTitle)}"])
 
 
     return out_args
