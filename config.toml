@@ -18,6 +18,19 @@ Libraries = [
 CRDL_Path = 'A:\Media\Source\CRDL-Scrap\'
 CRDL_Target = 'A:\Media\Source\Video-Raw\'
 CRDL_exe = 'crunchyroll-downloader.exe'
+# Required to be in the same directory as the exe and wvd file
+CRDL_token = 'cr-etp-rt.txt'
+# url list and target audio streams
+# Streams are Exclusive downloads, so if the audio track
+# is missing, that file WILL be skipped.
+CRDL_UpdateList = [
+    ["en-urls.txt", "ja-JP,en-US"],
+    ["jp-urls.txt", "ja-JP"],
+]
+CRDL_CompletedList = [
+    ["en-urls_u.txt", "ja-JP,en-US"],
+    ["jp-urls_u.txt", "ja-JP"]
+]
 
 # Array of encoding directories
 [[Media.Encoding]]
@@ -49,6 +62,11 @@ Match_Exts = [
     ".ass", 
     ".ssa", 
     ".ttml", 
+]
+CleanEpisodeList = [
+    [" [1080p]", ""],
+    [" - ", " "],
+    ["_", "\'"]
 ]
 # Jellyfin server looks for these forlders for specific items
 # Ignore these folders for sorting files

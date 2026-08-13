@@ -28,12 +28,9 @@ def run_once(func):
 @run_once
 def initialize_system():
     config = load_config()
-    PathHelper.StagingPath = Path(config["Media"]["Staging"])
     PathHelper.LogFile = Path(config["Media"]["LogFile"])
-    PathHelper.CRDL_Path = Path(config["Media"]["CRDL_Path"])
-    PathHelper.CRDL_Target = Path(config["Media"]["CRDL_Target"])
-    PathHelper.CRDL_exe = Path(config["Media"]["CRDL_exe"])
-
+    PathHelper.StagingPath = Path(config["Media"]["Staging"])
+    
     for entry in config["Media"]["Libraries"]:
         PathHelper.LibraryDirs[entry["name"]] = Path(entry["path"])
 
@@ -46,11 +43,20 @@ def initialize_system():
             PathHelper.EncodingList.append([source, target])
             PathHelper.SourceDirs[target.name] = target
 
+    # Crunchyroll Downloader info
+    PathHelper.CRDL_Path = Path(config["Media"]["CRDL_Path"])
+    PathHelper.CRDL_Target = Path(config["Media"]["CRDL_Target"])
+    PathHelper.CRDL_exe = Path(config["Media"]["CRDL_exe"])
+    PathHelper.CRDL_TokenName = Path(config["Media"]["CRDL_token"])
+    PathHelper.CRDL_UpdateList = config["Media"]["CRDL_UpdateList"]
+    PathHelper.CRDL_CompletedList = config["Media"]["CRDL_CompletedList"]
+
     DirManagerInfo = config["DirectoryManager"]
     DirectoryManager.MovieFile_Exts = DirManagerInfo["MovieFile_Exts"]
     DirectoryManager.AudioFile_Exts = DirManagerInfo["AudioFile_Exts"]
     DirectoryManager.Match_Exts     = DirManagerInfo["Match_Exts"]
     DirectoryManager.IgnoreDirs     = DirManagerInfo["IgnoreDirs"]
+    DirectoryManager.CleanEpisodeNameList = DirManagerInfo["CleanEpisodeList"]
 
     print("System initialized!")
 
@@ -74,14 +80,22 @@ class CorruptException(Exception):
     pass
 
 class PathHelper:
-    StagingPath = Path("")
+    # File to dump corrupted media found by ffmpeg
     LogFile = Path("")
-    CRDL_Path = Path("")
-    CRDL_Target = Path("")
-    CRDL_exe = Path("")
+
+    StagingPath = Path("")
     EncodingList = []
     SourceDirs = {}
     LibraryDirs = {}
+
+    # Crunchroll Downloader info
+    CRDL_Path = Path("")
+    CRDL_Target = Path("")
+    CRDL_exe = Path("")
+    CRDL_TokenName = Path("")
+    # Array of url lists and targeted audio streams
+    CRDL_UpdateList = []
+    CRDL_CompletedList = []
 
     def GetRelativeToSource(self, nestedPath:Path):
         for source_path in self.SourceDirs.values():
@@ -524,8 +538,8 @@ def RunCRDL(url_file:str, language:str):
 
     etp_rt_token = etp_rt_file.read_text().strip()
 
-    # Define the command and the error trigger
-    command = [str(crdl_exe.resolve()), "--etp-rt", etp_rt_token, "--audio-lang", language, "--subs-lang", "en-US", "--file", url_file]  # Replace with your actual command
+    # Define the command
+    command = [str(crdl_exe.resolve()), "--etp-rt", etp_rt_token, "--audio-lang", language, "--subs-lang", "en-US", "--file", url_file]
 
     result = True
     status = None
@@ -578,24 +592,12 @@ def RunCRDL(url_file:str, language:str):
     # End RunCRDL
 
 class DirectoryManager:
-    MovieFile_Exts = [".mp4", ".webm", ".mkv"]
-    AudioFile_Exts = [".mp3", ".flac", ".aac", ".alac", ".wav", ".m4b"]
-    Match_Exts = [".srt", ".sub", ".vtt", ".ass", ".ssa", ".ttml", ".funscript"]
-    IgnoreDirs = [
-        "behind the scenes",
-        "deleted scenes",
-        "interviews",
-        "scenes",
-        "samples",
-        "shorts",
-        "featurettes",
-        "clips",
-        "other",
-        "extras",
-        "trailers",
-        "theme-music",
-        "backdrops" 
-    ]
+    MovieFile_Exts = []
+    AudioFile_Exts = []
+    Match_Exts = []
+    IgnoreDirs = []
+    CleanEpisodeNameList = []
+
     MetadataProviders = [
         {
             "Name" : "TVDB",
@@ -689,15 +691,9 @@ class DirectoryManager:
 
 
     def CleanEpisodeTitles(self):
-        sub_strings = [
-            [" [1080p]", ""],
-            [" - ", " "],
-            ["_", "\'"]
-        ]
-
         for movie in self.MovieFiles:
             name_stem = movie.stem
-            for rep_string in sub_strings:
+            for rep_string in self.CleanEpisodeNameList:
                 f_string = rep_string[0]
                 r_string = rep_string[1]
                 if f_string in name_stem:
@@ -773,10 +769,11 @@ class DirectoryManager:
                 user_res = input(textwrap.dedent("""\
                 s - Season #
                 e - Episode #
-                p - part #
+                p - Part #
                 x - Skip #
-                n - Episode Name
-                f - Finish
+                n - Name <name>
+                f - Finish (auto increment episodes)
+                q - quit early
                 Correct?
                 """)).split(maxsplit=1)
 
@@ -953,12 +950,11 @@ def main():
         userInput = input(textwrap.dedent("""
             Choose Option:
             [1] Encoding (FFMPEG Video:AV1-SVT Audio:mp3)
-            [2] Processing (Copy Dir to Process, rename series)
+            [2] Processing (Copy Dir to Staging, Rename Series)
             [3] Edit Staged Directory
-            [4] Finalizing (Copy Processed folder to Library)
+            [4] Finalize (Copy from Staging folder to Library)
             [8] Run Crunchyroll Downloader
-            [9] Move CRDL to Raw
-            [0] Compile Library List
+            [9] Move CRDL to Encoding
             [q] quit - Default
             """))
         
@@ -994,7 +990,7 @@ def main():
                     print("Copying. . .")
                     G_PathHelper.StagingPath.mkdir(parents=True, exist_ok=True)
                     copied_path:Path = source_path.copy_into(G_PathHelper.StagingPath)
-                    userInput = input(f"Do you wish to rename {copied_path.name}? ")
+                    userInput = input(f"Do you wish to rename {copied_path.name} (Enter new name, or press enter)? ")
                     if userInput:
                         copied_path = copied_path.rename(copied_path.with_name(userInput))
                     dirManager = DirectoryManager(copied_path, G_PathHelper.StagingPath)
@@ -1037,7 +1033,7 @@ def main():
                 Choose Option:
                 [1] Update
                 [2] Completed
-                [3] Both
+                [3] Both (Update -> Complete)
                 """))
             res = True
             if userInput == "1" or userInput == "3":
