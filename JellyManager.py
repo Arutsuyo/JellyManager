@@ -175,6 +175,48 @@ class PathHelper:
         except:
             pass
     # End CleanupDirs
+
+    def RunCRDL(self):
+        userInput = input(textwrap.dedent("""
+            Choose Option:
+            [1] Update
+            [2] Completed
+            [3] Both (Update -> Complete)
+            """))
+        
+        res = True
+
+        if userInput == "1" or userInput == "3":
+            overwrite = False
+            for crdl_pair in self.CRDL_UpdateList:
+                source_path = Path(crdl_pair[0])
+                res = RunCRDLInstance(source_path, crdl_pair[1])
+                if len(source_path.parts) == 1:
+                    crdl_manager = DirectoryManager(self.CRDL_Path, self.CRDL_Path)
+                    crdl_manager.SendCRDLToRaw(overwrite)
+                else:
+                    dr_path = self.CRDL_Path / source_path.parent
+                    crdl_manager = DirectoryManager(dr_path, dr_path)
+                    crdl_manager.SendCRDLToRaw(overwrite)
+                overwrite = True
+                if res == False:
+                    return
+            
+
+        if userInput == "2" or userInput == "3":
+            for crdl_pair in self.CRDL_CompletedList:
+                source_path = Path(crdl_pair[0])
+                res = RunCRDLInstance(source_path, crdl_pair[1])
+                if len(source_path.parts) == 1:
+                    crdl_manager = DirectoryManager(self.CRDL_Path, self.CRDL_Path)
+                    crdl_manager.SendCRDLToRaw(False)
+                else:
+                    dr_path = self.CRDL_Path / source_path.parent
+                    crdl_manager = DirectoryManager(dr_path, dr_path)
+                    crdl_manager.SendCRDLToRaw(False)
+                if res == False:
+                    return
+
 # End PathHelper
 
 def RemoveEmptyDirs(targetPath:Path):
@@ -185,6 +227,7 @@ def RemoveEmptyDirs(targetPath:Path):
         if not any(targetPath.iterdir()):
             try:
                 targetPath.rmdir()
+                print(f"Empty: {targetPath}")
             except:
                 print(f"Could not remove: {targetPath}")
 
@@ -427,8 +470,8 @@ def ExecFFMPEG(sourceFile:Path, targetFile:Path):
             time.sleep(0.1)
 
     except KeyboardInterrupt:
-        print("Processing Interrupt, sending SIGKILL")
-        process.kill()
+        print("Processing Interrupt, sending CTRL_BREAK_EVENT")
+        process.send_signal(signal.CTRL_BREAK_EVENT)
 
     except CorruptException as e:
         process.kill()
@@ -493,6 +536,7 @@ def parseCRDLOutput(process:subprocess.Popen):
     ]
     error_list = [
         "Too many requests",
+        "Failed to open URLs file",
         "TOO_MANY_ACTIVE_STREAMS"
     ]
     restart_list = [
@@ -535,7 +579,7 @@ def parseCRDLOutput(process:subprocess.Popen):
     return result
 
 
-def RunCRDL(url_file:str, language:str):
+def RunCRDLInstance(url_path:Path, language:str):
     crdl_exe = G_PathHelper.CRDL_Path / G_PathHelper.CRDL_exe
     if not crdl_exe.exists():
         print(f"Error: {crdl_exe.name} does not exist!")
@@ -548,7 +592,14 @@ def RunCRDL(url_file:str, language:str):
     etp_rt_token = etp_rt_file.read_text().strip()
 
     # Define the command
-    command = [str(crdl_exe.resolve()), "--etp-rt", etp_rt_token, "--audio-lang", language, "--subs-lang", "en-US", "--file", url_file]
+    command = [str(crdl_exe.resolve()), "--etp-rt", etp_rt_token, "--audio-lang", language, "--subs-lang", "en-US", "--file", str(url_path)]
+    if len(url_path.parts) > 1:
+        command.extend(["-output-dir", str(url_path.parent)])
+
+    print()
+    print("CR-DL:")
+    print(*command, sep=" ")
+    print()
 
     result = True
     status = None
@@ -571,7 +622,9 @@ def RunCRDL(url_file:str, language:str):
                 time.sleep(0.1)
 
             except KeyboardInterrupt:
-                process.send_signal(signal.CTRL_BREAK_EVENT)
+                print("Interrupt Detected, sending Kill")
+                process.kill()
+                process.wait()
                 runLoop = False
                 result = False
 
@@ -584,7 +637,7 @@ def RunCRDL(url_file:str, language:str):
         # Process Loop
         status = process.returncode
         if status == 0:
-            print(f"CRDL Finished pulling {url_file}!")
+            print(f"CRDL Finished pulling {url_path}!")
             runLoop = False
             
         # Ensure the process resources are cleaned up
@@ -594,7 +647,6 @@ def RunCRDL(url_file:str, language:str):
     print()
     print(f"Process finished with: {status}.")
     # end CRDL Loop
-
 
     RemoveEmptyDirs(G_PathHelper.CRDL_Path)
     return result
@@ -707,7 +759,7 @@ class DirectoryManager:
         for movie in self.MovieFiles:
             print(f"{movie.stem}")
 
-    def SendCRDLToRaw(self):
+    def SendCRDLToRaw(self, Overwrite:bool):
         for movie in self.MovieFiles:
             fileSize = movie.stat().st_size
             if fileSize == 0:
@@ -715,8 +767,17 @@ class DirectoryManager:
             print(f"Moving {movie.stem}")
             targetDir = G_PathHelper.CRDL_Target / movie.parent.name
             targetDir.mkdir(parents=True, exist_ok=True)
-            newMovieFile = movie.copy_into(targetDir)
-            if newMovieFile.exists():
+            targetFile = targetDir / movie.name
+            try:
+                targetFile = movie.copy(targetFile)
+            except FileExistsError as e:
+                print(f"FileExistsError: {targetFile} already exists")
+                if Overwrite:
+                    print("Overwriting...")
+                    send2trash(targetFile)
+                    targetFile = movie.copy_into(targetFile)
+
+            if targetFile.exists():
                 with open(movie, "w") as f:
                     pass
     # End SendCRDLToRaw
@@ -937,6 +998,9 @@ class DirectoryManager:
                     if not res:
                         break
         print(f"Finished encoding {self.DirectoryPath.name} ({res})")
+            
+        RemoveEmptyDirs(self.DirectoryPath)
+        RemoveEmptyDirs(EncodePath)
         return res
     # End EncodeDirectory
 
@@ -954,8 +1018,7 @@ def main():
             [2] Processing (Copy Dir to Staging, Rename Series)
             [3] Edit Staged Directory
             [4] Finalize (Copy from Staging folder to Library)
-            [8] Run Crunchyroll Downloader
-            [9] Move CRDL to Encoding
+            [0] Run Crunchyroll Downloader
             [q] quit - Default
             """))
         
@@ -963,21 +1026,16 @@ def main():
             break
 
         if userInput == "1":
-            use_list = []
-            for encode_tuple in G_PathHelper.EncodingList:
-                user_input = input(f"Process {encode_tuple[0]}? (Y/n)")
-                if not user_input or user_input == "y":
-                    use_list.append(encode_tuple)
             encode_list = []
             user_input = input(f"Pre-Scan Folders for ffmpeg issues? (N/y)")
             preScan = False
             if user_input == "y":
                 preScan = True
-            for entry in use_list:
+            for entry in G_PathHelper.EncodingList:
                 encode_list.append([DirectoryManager(entry[0], entry[0], preScan=preScan), entry[1]])
             for encode_pair in encode_list:
                 if not encode_pair[0].EncodeDirectory(encode_pair[1]):
-                    print("Halting Encoding process")
+                    print("Encoding Error: Halting encoding routine")
                     break
             
 
@@ -1026,43 +1084,12 @@ def main():
                 print("Copying. . .")
                 copied_path = staged_path.copy_into(library_path)
 
-        if userInput == "8":
-            url_order = [
-                ["urls_u.txt", "ja-JP,en-US"],
-                ["jp-urls_u.txt", "ja-JP"],
-                ["urls.txt", "ja-JP,en-US"],
-                ["jp-urls.txt", "ja-JP"]
-            ]
-            userInput = input(textwrap.dedent("""
-                Choose Option:
-                [1] Update
-                [2] Completed
-                [3] Both (Update -> Complete)
-                """))
-            res = True
-            if userInput == "1" or userInput == "3":
-                crdl_pair = url_order[0]
-                res = RunCRDL(crdl_pair[0], crdl_pair[1])
-                if res:
-                    crdl_pair = url_order[1]
-                    res = RunCRDL(crdl_pair[0], crdl_pair[1])
-
-            if userInput == "2" or userInput == "3":
-                crdl_pair = url_order[2]
-                if res:
-                    res = RunCRDL(crdl_pair[0], crdl_pair[1])
-                crdl_pair = url_order[3]
-                if res:
-                    res = RunCRDL(crdl_pair[0], crdl_pair[1])
+        if userInput == "0":
+            G_PathHelper.RunCRDL()
             print()
             print("finished CRDL")
-            if res:
-                userInput = "9"
-            
-        if userInput == "9":
-            crdl_manager = DirectoryManager(G_PathHelper.CRDL_Path, G_PathHelper.CRDL_Path)
-            crdl_manager.SendCRDLToRaw()
 
+            
         print()
     # End User Input
 

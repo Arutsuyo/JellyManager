@@ -24,12 +24,12 @@ CRDL_token = 'cr-etp-rt.txt'
 # Streams are Exclusive downloads, so if the audio track
 # is missing, that file WILL be skipped.
 CRDL_UpdateList = [
-    ["en-urls.txt", "ja-JP,en-US"],
-    ["jp-urls.txt", "ja-JP"],
+    ['update-jp\jp-urls.txt', "ja-JP"],
+    ['update-en\en-urls.txt', "ja-JP,en-US"],
 ]
 CRDL_CompletedList = [
-    ["en-urls_u.txt", "ja-JP,en-US"],
-    ["jp-urls_u.txt", "ja-JP"]
+    ['completed\en-urls_u.txt', "ja-JP,en-US"],
+    ['completed\jp-urls_u.txt', "ja-JP"]
 ]
 
 # Array of encoding directories
