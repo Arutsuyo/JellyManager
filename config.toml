@@ -66,7 +66,7 @@ Match_Exts = [
 CleanEpisodeList = [
     [" [1080p]", ""],
     [" - ", " "],
-    ["_", "\'"]
+    ["_", "'"]
 ]
 # Jellyfin server looks for these forlders for specific items
 # Ignore these folders for sorting files
