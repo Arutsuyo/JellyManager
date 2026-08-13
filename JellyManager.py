@@ -326,8 +326,17 @@ def GetAudioStreamArgs(AudioStream, StreamNumber:int):
         out_args.extend([f"-filter:a:{StreamNumber}", "aformat=channel_layouts=7.1"])
         out_args.extend([f"-mapping_family:a:{StreamNumber}", "1"])
 
+    lang = AudioStream["tags"]["language"]
+    out_args.extend([f"-metadata:s:a:{StreamNumber}", f"language={AudioStream["tags"]["language"]}"])
 
-    out_args.extend(["-metadata:s:a:0", f"title=\"{AudioStream["tags"]["title"]}\"", "-metadata:s:a:0", f"language={AudioStream["tags"]["language"]}"])
+    fallbackTitle = ""
+    if lang == "jpn":
+        fallbackTitle = "Japanese"
+    if lang == "eng":
+        fallbackTitle = "English"
+        
+    out_args.extend([f"-metadata:s:a:{StreamNumber}", f"title=\"{AudioStream["tags"].get("title", fallbackTitle)}\""])
+
 
     return out_args
 
