@@ -675,15 +675,7 @@ class DirectoryManager:
                 raise Exception("Cannot process files in folder")
     # End __init__
 
-    def __del__(self):
-        print(f"Cleaning Directory Path: {self.DirectoryPath}")
-        child_paths = list(self.DirectoryPath.iterdir())
-        for child_path in child_paths:
-            try:
-                RemoveEmptyDirs(child_path)
-            except:
-                pass
-        
+
     def SetDirectoryFiles(self):
         print()
         print(f"{self.DirectoryPath.name} Contains")
