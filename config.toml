@@ -5,31 +5,12 @@ version = "1.0"
 
 [Media]
 LogFile = 'A:\Media\Source\Video-Raw\CorruptedMedia.txt'
-
 # Directory to move files to while processing
 Staging = 'A:\Media\Staging'
 Libraries = [
     {name = "Anime", path = 'D:\Media\Libraries\Anime'},
     {name = "Movies", path = 'D:\Media\Libraries\Movies'},
     {name = "Series", path = 'D:\Media\Libraries\Series'},
-]
-
-# For use with https://github.com/Arutsuyo/wrapped-crunchyroll-downloader.git
-CRDL_Path = 'A:\Media\Source\CRDL-Scrap\'
-CRDL_Target = 'A:\Media\Source\Video-Raw\'
-CRDL_exe = 'crunchyroll-downloader.exe'
-# Required to be in the same directory as the exe and wvd file
-CRDL_token = 'cr-etp-rt.txt'
-# url list and target audio streams
-# Streams are Exclusive downloads, so if the audio track
-# is missing, that file WILL be skipped.
-CRDL_CurrentList = [
-    #['Current-jp\jp-urls.txt', "ja-JP"],
-    ['Current-en\en-urls.txt', "ja-JP,en-US"],
-]
-CRDL_FinishedList = [
-    ['Finshed\en-urls_u.txt', "ja-JP,en-US"],
-    ['Finshed\jp-urls_u.txt', "ja-JP"]
 ]
 
 # Array of encoding directories
@@ -71,3 +52,25 @@ CleanEpisodeList = [
 # Jellyfin server looks for these forlders for specific items
 # Ignore these folders for sorting files
 IgnoreDirs = ["behind the scenes","deleted scenes","interviews","scenes","samples","shorts","featurettes","clips","other","extras","trailers","theme-music","backdrops"]
+
+[CRDL]
+# For use with https://github.com/Arutsuyo/wrapped-crunchyroll-downloader.git
+CRDL_Path = 'A:\Media\Source\CRDL-Scrap\'
+CRDL_Target = 'A:\Media\Source\Video-Raw\'
+CRDL_exe = 'crunchyroll-downloader.exe'
+# Required to be in the same directory as the exe and wvd file
+CRDL_token = 'cr-etp-rt.txt'
+# Download throttle in seconds to rate limit
+CRDL_Throttle = 1200
+# url list and target audio streams
+# Streams are Exclusive downloads, so if the audio track
+# is missing, that file WILL be skipped.
+CRDL_CurrentList = [
+    #['Current-jp\jp-urls.txt', "ja-JP"],
+    ['Current-en\en-urls.txt', "ja-JP,en-US"],
+]
+CRDL_FinishedList = [
+    ['Finshed\en-urls_u.txt', "ja-JP,en-US"],
+    ['Finshed\jp-urls_u.txt', "ja-JP"]
+]
+

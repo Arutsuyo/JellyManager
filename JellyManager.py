@@ -50,6 +50,7 @@ def initialize_system():
     PathHelper.CRDL_TokenName = Path(config["Media"]["CRDL_token"])
     PathHelper.CRDL_CurrentList = config["Media"]["CRDL_CurrentList"]
     PathHelper.CRDL_FinishedList = config["Media"]["CRDL_FinishedList"]
+    PathHelper.CRDL_Throttle = config["Media"]["CRDL_Throttle"]
 
     DirManagerInfo = config["DirectoryManager"]
     DirectoryManager.MovieFile_Exts = DirManagerInfo["MovieFile_Exts"]
@@ -93,6 +94,7 @@ class PathHelper:
     CRDL_Target = Path("")
     CRDL_exe = Path("")
     CRDL_TokenName = Path("")
+    CRDL_Throttle = 0
     # Array of url lists and targeted audio streams
     CRDL_CurrentList = []
     CRDL_FinishedList = []
@@ -606,6 +608,9 @@ def RunCRDLInstance(url_path:Path, language:str):
     if len(url_path.parts) > 1:
         command.extend(["-output-dir", str(url_path.parent)])
 
+    if G_PathHelper.CRDL_Throttle > 1:
+        command.extend(["-throttle ", str(G_PathHelper.CRDL_Throttle)])
+        
     print()
     print("CR-DL:")
     print(*command, sep=" ")
