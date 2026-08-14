@@ -411,8 +411,11 @@ def GetFFMPEGArgs(mediaPath:Path):
     media_args[:0] = stream_map
     return media_args
 
-def parseFFMPEGOutput(process:subprocess.Popen):
-    error_trigger1 = "error while decoding"     # The keyword that triggers the kill
+def parseFFMPEGOutput(process:subprocess.Popen, finishDump:bool = False):
+    error_list = [
+        "error while decoding",
+        "Error submitting packet to decoder"
+    ]
 
     overwrite_trigger = "frame="
 
@@ -430,8 +433,9 @@ def parseFFMPEGOutput(process:subprocess.Popen):
             print(line, end=end, flush=True)  # Print the process output to your console
             
             # Check for the error message
-            if error_trigger1 in line:
-                raise CorruptException("Error: Corrupt decoded frame")
+            if any(sub in line for sub in error_list):
+                if not finishDump:
+                    raise CorruptException("Error: Corrupt decoded frame")
     else:
         raise Exception("process.stdout Not Found!")
     # End parseFFMPEGOutput
@@ -470,12 +474,15 @@ def ExecFFMPEG(sourceFile:Path, targetFile:Path):
     except KeyboardInterrupt:
         print()
         print("Processing Interrupt, sending Kill")
+        # Double on purpose
+        process.kill()
         process.kill()
 
     except CorruptException as e:
+        # Double on purpose
         process.kill()
-        outfile = G_PathHelper.LogFile.with_stem(G_PathHelper.LogFile.stem + " - Corrupt Media")
-        with open(outfile, mode="+a", encoding="utf-8") as f:
+        process.kill()
+        with open(G_PathHelper.LogFile, mode="+a", encoding="utf-8") as f:
             target = G_PathHelper.GetRelativeToSource(sourceFile)
             f.write(f"Corrupt Frames {str(target)}\n")
         print()
@@ -485,11 +492,13 @@ def ExecFFMPEG(sourceFile:Path, targetFile:Path):
     except Exception as e:
         print()
         print(f"An exception occurred: {e}")
+        # Double on purpose
+        process.kill()
         process.kill()
 
     process.wait()
     print()
-    parseFFMPEGOutput(process)
+    parseFFMPEGOutput(process, True)
     print()
     pCode = process.returncode
     print(f"FFMPEG({pCode}) exited")
