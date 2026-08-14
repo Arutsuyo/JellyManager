@@ -183,40 +183,38 @@ class PathHelper:
             [2] Completed
             [3] Both (Update -> Complete)
             """))
-        
-        res = True
 
-        if userInput == "1" or userInput == "3":
-            overwrite = False
-            for crdl_pair in self.CRDL_UpdateList:
-                source_path = Path(crdl_pair[0])
-                res = RunCRDLInstance(source_path, crdl_pair[1])
-                if len(source_path.parts) == 1:
-                    crdl_manager = DirectoryManager(self.CRDL_Path, self.CRDL_Path)
-                    crdl_manager.SendCRDLToRaw(overwrite)
-                else:
-                    dr_path = self.CRDL_Path / source_path.parent
-                    crdl_manager = DirectoryManager(dr_path, dr_path)
-                    crdl_manager.SendCRDLToRaw(overwrite)
-                overwrite = True
-                if res == False:
-                    return
-            
+        try:
+            if userInput == "1" or userInput == "3":
+                overwrite = False
+                for crdl_pair in self.CRDL_UpdateList:
+                    source_path = Path(crdl_pair[0])
+                    res = RunCRDLInstance(source_path, crdl_pair[1])
+                    overwrite = True
+                    if res == False:
+                        print("CR-DL Encountered an error. Exiting Routine")
+                        raise Exception("CR-DL Encounted an error. Stopping Routine")
+                
 
-        if userInput == "2" or userInput == "3":
-            for crdl_pair in self.CRDL_CompletedList:
-                source_path = Path(crdl_pair[0])
-                res = RunCRDLInstance(source_path, crdl_pair[1])
-                if len(source_path.parts) == 1:
-                    crdl_manager = DirectoryManager(self.CRDL_Path, self.CRDL_Path)
-                    crdl_manager.SendCRDLToRaw(False)
-                else:
-                    dr_path = self.CRDL_Path / source_path.parent
-                    crdl_manager = DirectoryManager(dr_path, dr_path)
-                    crdl_manager.SendCRDLToRaw(False)
-                if res == False:
-                    return
+            if userInput == "2" or userInput == "3":
+                for crdl_pair in self.CRDL_CompletedList:
+                    source_path = Path(crdl_pair[0])
+                    res = RunCRDLInstance(source_path, crdl_pair[1])
+                    if res == False:
+                        print("CR-DL Encountered an error. Exiting Routine")
+                        raise Exception("CR-DL Encounted an error. Stopping Routine")
 
+            print("CR-DL Completed Successfully")
+
+        except Exception as e:
+            print(e)
+
+        finally:
+            print("Moving CR-DL downloads to processing location")
+            crdl_manager = DirectoryManager(self.CRDL_Path, self.CRDL_Path)
+            crdl_manager.SendCRDLToRaw()
+    # End RunCRDL
+    
 # End PathHelper
 
 def RemoveEmptyDirs(targetPath:Path):
@@ -732,7 +730,7 @@ class DirectoryManager:
         print()
         print(f"{self.DirectoryPath.name} Contains")
         # Gather all files
-        fileList = sorted([p for p in self.DirectoryPath.rglob("*") if p.is_file()])
+        fileList = sorted([p for p in self.DirectoryPath.rglob("*") if p.is_file() and p.stat().st_size])
         # filter Files by type
         print(f"Files Found: {len(fileList)}")
         self.AudioFiles = [f for f in fileList if f.suffix in self.AudioFile_Exts]
@@ -759,11 +757,8 @@ class DirectoryManager:
         for movie in self.MovieFiles:
             print(f"{movie.stem}")
 
-    def SendCRDLToRaw(self, Overwrite:bool):
+    def SendCRDLToRaw(self):
         for movie in self.MovieFiles:
-            fileSize = movie.stat().st_size
-            if fileSize == 0:
-                continue
             print(f"Moving {movie.stem}")
             targetDir = G_PathHelper.CRDL_Target / movie.parent.name
             targetDir.mkdir(parents=True, exist_ok=True)
@@ -772,10 +767,6 @@ class DirectoryManager:
                 targetFile = movie.copy(targetFile)
             except FileExistsError as e:
                 print(f"FileExistsError: {targetFile} already exists")
-                if Overwrite:
-                    print("Overwriting...")
-                    send2trash(targetFile)
-                    targetFile = movie.copy_into(targetFile)
 
             if targetFile.exists():
                 with open(movie, "w") as f:
@@ -1086,8 +1077,6 @@ def main():
 
         if userInput == "0":
             G_PathHelper.RunCRDL()
-            print()
-            print("finished CRDL")
 
             
         print()
