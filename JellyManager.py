@@ -41,15 +41,15 @@ def initialize_system():
             source = base_path / info["Source"]
             target = base_path / info["Target"]
             PathHelper.EncodingList.append([source, target])
-            PathHelper.SourceDirs[target.name] = target
+            PathHelper.SourceDirs[source.name] = source
 
     # Crunchyroll Downloader info
     PathHelper.CRDL_Path = Path(config["Media"]["CRDL_Path"])
     PathHelper.CRDL_Target = Path(config["Media"]["CRDL_Target"])
     PathHelper.CRDL_exe = Path(config["Media"]["CRDL_exe"])
     PathHelper.CRDL_TokenName = Path(config["Media"]["CRDL_token"])
-    PathHelper.CRDL_UpdateList = config["Media"]["CRDL_UpdateList"]
-    PathHelper.CRDL_CompletedList = config["Media"]["CRDL_CompletedList"]
+    PathHelper.CRDL_CurrentList = config["Media"]["CRDL_UpdateList"]
+    PathHelper.CRDL_FinshedList = config["Media"]["CRDL_CompletedList"]
 
     DirManagerInfo = config["DirectoryManager"]
     DirectoryManager.MovieFile_Exts = DirManagerInfo["MovieFile_Exts"]
@@ -94,8 +94,8 @@ class PathHelper:
     CRDL_exe = Path("")
     CRDL_TokenName = Path("")
     # Array of url lists and targeted audio streams
-    CRDL_UpdateList = []
-    CRDL_CompletedList = []
+    CRDL_CurrentList = []
+    CRDL_FinshedList = []
 
     def GetRelativeToSource(self, nestedPath:Path):
         for source_path in self.SourceDirs.values():
@@ -187,7 +187,7 @@ class PathHelper:
         try:
             if userInput == "1" or userInput == "3":
                 overwrite = False
-                for crdl_pair in self.CRDL_UpdateList:
+                for crdl_pair in self.CRDL_CurrentList:
                     source_path = Path(crdl_pair[0])
                     res = RunCRDLInstance(source_path, crdl_pair[1])
                     overwrite = True
@@ -197,7 +197,7 @@ class PathHelper:
                 
 
             if userInput == "2" or userInput == "3":
-                for crdl_pair in self.CRDL_CompletedList:
+                for crdl_pair in self.CRDL_FinshedList:
                     source_path = Path(crdl_pair[0])
                     res = RunCRDLInstance(source_path, crdl_pair[1])
                     if res == False:
@@ -214,7 +214,7 @@ class PathHelper:
             crdl_manager = DirectoryManager(self.CRDL_Path, self.CRDL_Path)
             crdl_manager.SendCRDLToRaw()
     # End RunCRDL
-    
+
 # End PathHelper
 
 def RemoveEmptyDirs(targetPath:Path):
@@ -468,8 +468,9 @@ def ExecFFMPEG(sourceFile:Path, targetFile:Path):
             time.sleep(0.1)
 
     except KeyboardInterrupt:
-        print("Processing Interrupt, sending CTRL_BREAK_EVENT")
-        process.send_signal(signal.CTRL_BREAK_EVENT)
+        print()
+        print("Processing Interrupt, sending Kill")
+        process.kill()
 
     except CorruptException as e:
         process.kill()
@@ -477,10 +478,12 @@ def ExecFFMPEG(sourceFile:Path, targetFile:Path):
         with open(outfile, mode="+a", encoding="utf-8") as f:
             target = G_PathHelper.GetRelativeToSource(sourceFile)
             f.write(f"Corrupt Frames {str(target)}\n")
+        print()
         print("Corrupt Frames detected, Skipping file...")
         safeFlag = True
 
     except Exception as e:
+        print()
         print(f"An exception occurred: {e}")
         process.kill()
 
@@ -760,7 +763,8 @@ class DirectoryManager:
     def SendCRDLToRaw(self):
         for movie in self.MovieFiles:
             print(f"Moving {movie.stem}")
-            targetDir = G_PathHelper.CRDL_Target / movie.parent.name
+            relative_path = movie.relative_to(G_PathHelper.CRDL_Path)
+            targetDir = G_PathHelper.CRDL_Target / relative_path
             targetDir.mkdir(parents=True, exist_ok=True)
             targetFile = targetDir / movie.name
             try:

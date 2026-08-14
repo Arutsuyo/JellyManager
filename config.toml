@@ -4,7 +4,7 @@ version = "1.0"
 
 
 [Media]
-LogFile = 'A:\Media\JellyManager.txt'
+LogFile = 'A:\Media\Source\Video-Raw\CorruptedMedia.txt'
 
 # Directory to move files to while processing
 Staging = 'A:\Media\Staging'
@@ -23,13 +23,13 @@ CRDL_token = 'cr-etp-rt.txt'
 # url list and target audio streams
 # Streams are Exclusive downloads, so if the audio track
 # is missing, that file WILL be skipped.
-CRDL_UpdateList = [
-    ['update-jp\jp-urls.txt', "ja-JP"],
-    ['update-en\en-urls.txt', "ja-JP,en-US"],
+CRDL_CurrentList = [
+    #['Current-jp\jp-urls.txt', "ja-JP"],
+    ['Current-en\en-urls.txt', "ja-JP,en-US"],
 ]
-CRDL_CompletedList = [
-    ['completed\en-urls_u.txt', "ja-JP,en-US"],
-    ['completed\jp-urls_u.txt', "ja-JP"]
+CRDL_FinshedList = [
+    ['Finshed\en-urls_u.txt', "ja-JP,en-US"],
+    ['Finshed\jp-urls_u.txt', "ja-JP"]
 ]
 
 # Array of encoding directories
