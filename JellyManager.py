@@ -94,7 +94,8 @@ class PathHelper:
     CRDL_Target = Path("")
     CRDL_exe = Path("")
     CRDL_TokenName = Path("")
-    CRDL_Throttle = 0
+    # Download Throttle in seconds (Min 1)
+    CRDL_Throttle = 1
     # Array of url lists and targeted audio streams
     CRDL_CurrentList = []
     CRDL_FinishedList = []
@@ -604,13 +605,10 @@ def RunCRDLInstance(url_path:Path, language:str):
     etp_rt_token = etp_rt_file.read_text().strip()
 
     # Define the command
-    command = [str(crdl_exe.resolve()), "--etp-rt", etp_rt_token, "--audio-lang", language, "--subs-lang", "en-US", "--file", str(url_path)]
+    command = [str(crdl_exe.resolve()), "--etp-rt", etp_rt_token, "--audio-lang", language, "--subs-lang", "en-US", "--file", str(url_path, ), "-throttle ", str(G_PathHelper.CRDL_Throttle)]
     if len(url_path.parts) > 1:
         command.extend(["-output-dir", str(url_path.parent)])
 
-    if G_PathHelper.CRDL_Throttle > 1:
-        command.extend(["-throttle ", str(G_PathHelper.CRDL_Throttle)])
-        
     print()
     print("CR-DL:")
     print(*command, sep=" ")
