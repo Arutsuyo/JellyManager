@@ -48,8 +48,8 @@ def initialize_system():
     PathHelper.CRDL_Target = Path(config["Media"]["CRDL_Target"])
     PathHelper.CRDL_exe = Path(config["Media"]["CRDL_exe"])
     PathHelper.CRDL_TokenName = Path(config["Media"]["CRDL_token"])
-    PathHelper.CRDL_CurrentList = config["Media"]["CRDL_UpdateList"]
-    PathHelper.CRDL_FinshedList = config["Media"]["CRDL_CompletedList"]
+    PathHelper.CRDL_CurrentList = config["Media"]["CRDL_CurrentList"]
+    PathHelper.CRDL_FinishedList = config["Media"]["CRDL_FinishedList"]
 
     DirManagerInfo = config["DirectoryManager"]
     DirectoryManager.MovieFile_Exts = DirManagerInfo["MovieFile_Exts"]
@@ -95,7 +95,7 @@ class PathHelper:
     CRDL_TokenName = Path("")
     # Array of url lists and targeted audio streams
     CRDL_CurrentList = []
-    CRDL_FinshedList = []
+    CRDL_FinishedList = []
 
     def GetRelativeToSource(self, nestedPath:Path):
         for source_path in self.SourceDirs.values():
@@ -197,7 +197,7 @@ class PathHelper:
                 
 
             if userInput == "2" or userInput == "3":
-                for crdl_pair in self.CRDL_FinshedList:
+                for crdl_pair in self.CRDL_FinishedList:
                     source_path = Path(crdl_pair[0])
                     res = RunCRDLInstance(source_path, crdl_pair[1])
                     if res == False:
@@ -763,7 +763,7 @@ class DirectoryManager:
     def SendCRDLToRaw(self):
         for movie in self.MovieFiles:
             print(f"Moving {movie.stem}")
-            relative_path = movie.relative_to(G_PathHelper.CRDL_Path)
+            relative_path = movie.parent.relative_to(G_PathHelper.CRDL_Path)
             targetDir = G_PathHelper.CRDL_Target / relative_path
             targetDir.mkdir(parents=True, exist_ok=True)
             targetFile = targetDir / movie.name

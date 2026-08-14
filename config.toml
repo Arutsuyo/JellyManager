@@ -27,7 +27,7 @@ CRDL_CurrentList = [
     #['Current-jp\jp-urls.txt', "ja-JP"],
     ['Current-en\en-urls.txt', "ja-JP,en-US"],
 ]
-CRDL_FinshedList = [
+CRDL_FinishedList = [
     ['Finshed\en-urls_u.txt', "ja-JP,en-US"],
     ['Finshed\jp-urls_u.txt', "ja-JP"]
 ]
