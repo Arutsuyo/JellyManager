@@ -44,13 +44,14 @@ def initialize_system():
             PathHelper.SourceDirs[source.name] = source
 
     # Crunchyroll Downloader info
-    PathHelper.CRDL_Path = Path(config["Media"]["CRDL_Path"])
-    PathHelper.CRDL_Target = Path(config["Media"]["CRDL_Target"])
-    PathHelper.CRDL_exe = Path(config["Media"]["CRDL_exe"])
-    PathHelper.CRDL_TokenName = Path(config["Media"]["CRDL_token"])
-    PathHelper.CRDL_CurrentList = config["Media"]["CRDL_CurrentList"]
-    PathHelper.CRDL_FinishedList = config["Media"]["CRDL_FinishedList"]
-    PathHelper.CRDL_Throttle = config["Media"]["CRDL_Throttle"]
+    PathHelper.CRDL_Path = Path(config["CRDL"]["CRDL_Path"])
+    PathHelper.CRDL_Target = Path(config["CRDL"]["CRDL_Target"])
+    PathHelper.CRDL_exe = Path(config["CRDL"]["CRDL_exe"])
+    PathHelper.CRDL_TokenName = Path(config["CRDL"]["CRDL_token"])
+    PathHelper.CRDL_CurrentList = config["CRDL"]["CRDL_CurrentList"]
+    PathHelper.CRDL_FinishedList = config["CRDL"]["CRDL_FinishedList"]
+    PathHelper.CRDL_Throttle = config["CRDL"]["CRDL_Throttle"]
+    PathHelper.CRDL_LogLevel = config["CRDL"]["CRDL_LogLevel"]
 
     DirManagerInfo = config["DirectoryManager"]
     DirectoryManager.MovieFile_Exts = DirManagerInfo["MovieFile_Exts"]
@@ -94,6 +95,7 @@ class PathHelper:
     CRDL_Target = Path("")
     CRDL_exe = Path("")
     CRDL_TokenName = Path("")
+    CRDL_LogLevel = 0
     # Download Throttle in seconds (Min 1)
     CRDL_Throttle = 1
     # Array of url lists and targeted audio streams
@@ -544,8 +546,8 @@ def ExecAudioFFMPEG(sourceFile:Path, targetFile:Path):
 def parseCRDLOutput(process:subprocess.Popen):
     result = True
     skip_list = [
-        "is already downloaded, skipping...",
-        "No season number specified"
+        #"is already downloaded, skipping...",
+        #"No season number specified"
     ]
     error_list = [
         "Too many requests",
@@ -564,7 +566,7 @@ def parseCRDLOutput(process:subprocess.Popen):
                 continue
 
             end = ""
-            if "%" in line:
+            if "%" in line or "Slept" in line:
                 seg_out = True
                 end = "\r"
                 line = line.replace("\n", "")
@@ -605,7 +607,7 @@ def RunCRDLInstance(url_path:Path, language:str):
     etp_rt_token = etp_rt_file.read_text().strip()
 
     # Define the command
-    command = [str(crdl_exe.resolve()), "--etp-rt", etp_rt_token, "--audio-lang", language, "--subs-lang", "en-US", "--file", str(url_path, ), "-throttle ", str(G_PathHelper.CRDL_Throttle)]
+    command = [str(crdl_exe.resolve()), "--etp-rt", etp_rt_token, "--audio-lang", language, "--subs-lang", "en-US", "--file", str(url_path, ), "-throttle", str(G_PathHelper.CRDL_Throttle), "-loglevel", str(G_PathHelper.CRDL_LogLevel)]
     if len(url_path.parts) > 1:
         command.extend(["-output-dir", str(url_path.parent)])
 
