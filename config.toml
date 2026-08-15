@@ -61,7 +61,7 @@ CRDL_exe = 'crunchyroll-downloader.exe'
 # Required to be in the same directory as the exe and wvd file
 CRDL_token = 'cr-etp-rt.txt'
 # Download throttle in seconds to rate limit (min 1)
-CRDL_Throttle = 300
+CRDL_Throttle = 900
 # url list and target audio streams
 # Streams are Exclusive downloads, so if the audio track
 # is missing, that file WILL be skipped.

@@ -42,6 +42,7 @@ def initialize_system():
             target = base_path / info["Target"]
             PathHelper.EncodingList.append([source, target])
             PathHelper.SourceDirs[source.name] = source
+            PathHelper.EncodeDirs[target.name] = target
 
     # Crunchyroll Downloader info
     PathHelper.CRDL_Path = Path(config["CRDL"]["CRDL_Path"])
@@ -88,6 +89,7 @@ class PathHelper:
     StagingPath = Path("")
     EncodingList = []
     SourceDirs = {}
+    EncodeDirs = {}
     LibraryDirs = {}
 
     # Crunchroll Downloader info
@@ -132,6 +134,24 @@ class PathHelper:
             except ValueError:
                 print(f"Invalid input, please input [0,{len(enum_list) - 1}]")
     # End GetSourceDir
+
+    def GetEncodeDir(self):
+        while True:
+            print("Available Encodes:")
+            enum_list = list(enumerate(self.EncodeDirs.items()))
+            for idx, item in enum_list:
+                print(f"[{idx}] {item[0]}")
+
+            try:
+                user_input = int(input("Input Selection: "))
+                if 0 <= user_input <= len(enum_list):
+                    return enum_list[user_input][1][1]
+                else:
+                    print(f"Invalid range, please input 0<=>{len(enum_list) - 1}")
+
+            except ValueError:
+                print(f"Invalid input, please input [0,{len(enum_list) - 1}]")
+    # End GetEncodeDir
 
     def GetLibraryDir(self):
         while True:
@@ -452,8 +472,16 @@ def ExecFFMPEG(sourceFile:Path, targetFile:Path):
         "-i", str(sourceFile),
         "-map_metadata", "0",
     ]
-
-    arguments.extend(GetFFMPEGArgs(sourceFile))
+    try:
+        arguments.extend(GetFFMPEGArgs(sourceFile))
+    except:
+        with open(G_PathHelper.LogFile, mode="+a", encoding="utf-8") as f:
+            target = G_PathHelper.GetRelativeToSource(sourceFile)
+            f.write(f"Corrupt Frames {str(target)}\n")
+        print()
+        print("Corrupt Frames detected, Skipping file...")
+        return True
+        
 
     arguments.append(str(targetFile))
         
@@ -739,6 +767,10 @@ class DirectoryManager:
                 print()
                 print("ERROR - These files need fixing:")
                 print(*failure_list, "\n")
+                with open(G_PathHelper.LogFile, mode="+a", encoding="utf-8") as f:
+                    for entry in failure_list:
+                        f.write(f"Corrupt Frames {str(entry)}\n")
+                    
                 raise Exception("Cannot process files in folder")
     # End __init__
 
@@ -1050,7 +1082,7 @@ def main():
 
         if userInput == "2":
             # [2] Processing (Copy Dir to Process, rename series)
-            starting_dir = G_PathHelper.GetSourceDir()
+            starting_dir = G_PathHelper.GetEncodeDir()
             source_path = ChoseSubDirectory(starting_dir, False)
             if source_path:
                 relative_path = G_PathHelper.GetRelativeToSource(source_path)
