@@ -519,12 +519,14 @@ def ExecFFMPEG(sourceFile:Path, targetFile:Path):
     except KeyboardInterrupt:
         print()
         print("Processing Interrupt, sending Kill")
-        # Double on purpose
+        # Tripple on purpose
+        process.kill()
         process.kill()
         process.kill()
 
     except CorruptException as e:
-        # Double on purpose
+        # Tripple on purpose
+        process.kill()
         process.kill()
         process.kill()
         with open(G_PathHelper.LogFile, mode="+a", encoding="utf-8") as f:
@@ -537,7 +539,8 @@ def ExecFFMPEG(sourceFile:Path, targetFile:Path):
     except Exception as e:
         print()
         print(f"An exception occurred: {e}")
-        # Double on purpose
+        # Tripple on purpose
+        process.kill()
         process.kill()
         process.kill()
 
