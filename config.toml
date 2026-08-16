@@ -75,3 +75,28 @@ CRDL_FinishedList = [
 ]
 # Logging level: 0=Errors, 1=Warnings, 2=Info, 3=Debug, 4=Trace
 CRDL_LogLevel = 3
+
+
+[LanguageMap]
+und = "Undetermined"
+jpn = "日本語"
+eng = "English"
+ind = "Bahasa Indonesia"
+msa = "Bahasa Melayu"
+cat = "Català"
+deu = "Deutsch"
+spa = "Español"
+fra = "Français"
+ita = "Italiano"
+pol = "Polski"
+por = "Português"
+vie = "Tiếng Việt"
+tur = "Türkçe"
+rus = "Русский"
+ara = "العربية"
+hin = "हिंदी"
+tam = "தமிழ்"
+tel = "తెలుగు"
+zho = "中文"
+kor = "한국어"
+tha = "ไทย"

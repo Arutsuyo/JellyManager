@@ -54,12 +54,15 @@ def initialize_system():
     PathHelper.CRDL_Throttle = config["CRDL"]["CRDL_Throttle"]
     PathHelper.CRDL_LogLevel = config["CRDL"]["CRDL_LogLevel"]
 
+    PathHelper.LanguageMap = config["LanguageMap"]
+
     DirManagerInfo = config["DirectoryManager"]
     DirectoryManager.MovieFile_Exts = DirManagerInfo["MovieFile_Exts"]
     DirectoryManager.AudioFile_Exts = DirManagerInfo["AudioFile_Exts"]
     DirectoryManager.Match_Exts     = DirManagerInfo["Match_Exts"]
     DirectoryManager.IgnoreDirs     = DirManagerInfo["IgnoreDirs"]
     DirectoryManager.CleanEpisodeNameList = DirManagerInfo["CleanEpisodeList"]
+
 
     print("System initialized!")
 
@@ -91,6 +94,8 @@ class PathHelper:
     SourceDirs = {}
     EncodeDirs = {}
     LibraryDirs = {}
+
+    LanguageMap = {}
 
     # Crunchroll Downloader info
     CRDL_Path = Path("")
@@ -398,14 +403,19 @@ def GetAudioStreamArgs(AudioStream, StreamNumber:int):
         out_args.extend([f"-filter:a:{StreamNumber}", "aformat=channel_layouts=7.1"])
         out_args.extend([f"-mapping_family:a:{StreamNumber}", "1"])
 
-    lang = AudioStream["tags"]["language"]
-    out_args.extend([f"-metadata:s:a:{StreamNumber}", f"language={AudioStream["tags"]["language"]}"])
+    langList = list(PathHelper.LanguageMap.items())
+    langKey = langList[0][0]
+    langVal = langList[0][1]
+    lang = AudioStream["tags"].get("language", langKey)
+    out_args.extend([f"-metadata:s:a:{StreamNumber}", f"language={lang}"])
 
     fallbackTitle = ""
     if lang == "jpn":
         fallbackTitle = "Japanese"
-    if lang == "eng":
+    elif lang == "eng":
         fallbackTitle = "English"
+    else:
+        fallbackTitle = langVal
 
     out_args.extend([f"-metadata:s:a:{StreamNumber}", f"title={AudioStream["tags"].get("title", fallbackTitle)}"])
 
