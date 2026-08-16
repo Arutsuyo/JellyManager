@@ -110,6 +110,12 @@ class PathHelper:
                 return nestedPath.relative_to(source_path)
     # End GetRelativeToSource
 
+    def GetRelativeToEncode(self, nestedPath:Path):
+        for Encode_path in self.EncodeDirs.values():
+            if nestedPath.is_relative_to(Encode_path) and nestedPath != Encode_path:
+                return nestedPath.relative_to(Encode_path)
+    # End GetRelativeToEncode
+
     def GetRelativeToLibrary(self, nestedPath:Path):
         for library_path in self.LibraryDirs.values():
             if nestedPath.is_relative_to(library_path) and nestedPath != library_path:
@@ -437,6 +443,9 @@ def GetFFMPEGArgs(mediaPath:Path):
     return media_args
 
 def parseFFMPEGOutput(process:subprocess.Popen, finishDump:bool = False):
+    skip_list = [
+        "Starting new cluster due to timestamp"
+    ]
     error_list = [
         "error while decoding",
         "Error submitting packet to decoder"
@@ -456,6 +465,9 @@ def parseFFMPEGOutput(process:subprocess.Popen, finishDump:bool = False):
                 seg_out = False
                 print()
             print(line, end=end, flush=True)  # Print the process output to your console
+
+            if any(sub in line for sub in skip_list):
+                continue
             
             # Check for the error message
             if any(sub in line for sub in error_list):
@@ -1085,7 +1097,7 @@ def main():
             starting_dir = G_PathHelper.GetEncodeDir()
             source_path = ChoseSubDirectory(starting_dir, False)
             if source_path:
-                relative_path = G_PathHelper.GetRelativeToSource(source_path)
+                relative_path = G_PathHelper.GetRelativeToEncode(source_path)
                 if relative_path:
                     print("Copying. . .")
                     G_PathHelper.StagingPath.mkdir(parents=True, exist_ok=True)
