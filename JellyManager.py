@@ -599,8 +599,8 @@ def ExecAudioFFMPEG(sourceFile:Path, targetFile:Path):
 def parseCRDLOutput(process:subprocess.Popen):
     result = True
     skip_list = [
-        #"is already downloaded, skipping...",
-        #"No season number specified"
+        "is already downloaded, skipping...",
+        "No season number specified"
     ]
     error_list = [
         "Too many requests",
