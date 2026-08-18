@@ -499,9 +499,9 @@ def ExecFFMPEG(sourceFile:Path, targetFile:Path):
     except:
         with open(G_PathHelper.LogFile, mode="+a", encoding="utf-8") as f:
             target = G_PathHelper.GetRelativeToSource(sourceFile)
-            f.write(f"Corrupt Frames {str(target)}\n")
+            f.write(f"FFPROBE error {str(target)}\n")
         print()
-        print("Corrupt Frames detected, Skipping file...")
+        print("FFPROBE error detected, Skipping file...")
         return True
         
 
@@ -794,7 +794,7 @@ class DirectoryManager:
                 print(*failure_list, "\n")
                 with open(G_PathHelper.LogFile, mode="+a", encoding="utf-8") as f:
                     for entry in failure_list:
-                        f.write(f"Corrupt Frames {str(entry)}\n")
+                        f.write(f"FFProbe Error {str(entry)}\n")
                     
                 raise Exception("Cannot process files in folder")
     # End __init__
