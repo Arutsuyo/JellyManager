@@ -434,7 +434,7 @@ def GetFFMPEGArgs(mediaPath:Path):
     stream_map = []
     for stream in probe['streams']:
 
-        if stream['codec_type'] == 'video':
+        if stream['codec_type'] == 'video' and num_streams_video == 0:
             stream_map.extend(["-map", f"0:{stream["index"]}"])
             media_args.extend(GetVideoStreamArgs(stream, num_streams_video))
             num_streams_video += 1
