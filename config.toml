@@ -70,7 +70,7 @@ CRDL_CurrentList = [
     ['Current-en\en-urls.txt', "ja-JP,en-US"],
 ]
 CRDL_FinishedList = [
-    ['Finished\en-urls.txt', "ja-JP,en-US"],
+    #['Finished\en-urls.txt', "ja-JP,en-US"],
     ['Finished\jp-urls.txt', "ja-JP"]
 ]
 # Logging level: 0=Errors, 1=Warnings, 2=Info, 3=Debug, 4=Trace
