@@ -30,6 +30,7 @@ def initialize_system():
     config = load_config()
     PathHelper.LogFile = Path(config["Media"]["LogFile"])
     PathHelper.StagingPath = Path(config["Media"]["Staging"])
+    PathHelper.BadRaw = Path(config["Media"]["BadRaw"])
     
     for entry in config["Media"]["Libraries"]:
         PathHelper.LibraryDirs[entry["name"]] = Path(entry["path"])
@@ -90,6 +91,7 @@ class PathHelper:
     LogFile = Path("")
 
     StagingPath = Path("")
+    BadRaw = Path("")
     EncodingList = []
     SourceDirs = {}
     EncodeDirs = {}
@@ -447,7 +449,10 @@ def GetFFMPEGArgs(mediaPath:Path):
         if stream['codec_type'] == 'subtitle' and not detect_subtitles:
             detect_subtitles = True
             stream_map.extend(["-map", "0:s"])
-            media_args.extend(["-c:s", "copy"])
+            if stream["codec_name"] == "mov_text":
+                media_args.extend(["-c:s", "srt"])
+            else:
+                media_args.extend(["-c:s", "copy"])
 
     media_args[:0] = stream_map
     return media_args
@@ -608,7 +613,6 @@ def parseCRDLOutput(process:subprocess.Popen):
         "TOO_MANY_ACTIVE_STREAMS"
     ]
     restart_list = [
-        "Recovered from error"
     ]
 
     if process.stdout:
@@ -719,6 +723,25 @@ def RunCRDLInstance(url_path:Path, language:str):
     RemoveEmptyDirs(G_PathHelper.CRDL_Path)
     return result
     # End RunCRDL
+
+def RunEncodingRoutine(prescan:bool):
+    for entry in G_PathHelper.EncodingList:
+        DirectoryManager(entry[0], entry[0], preScan=prescan)
+    res = True
+    while True:
+        crdl_manager = DirectoryManager(G_PathHelper.CRDL_Path, G_PathHelper.CRDL_Path)
+        crdl_manager.SendCRDLToRaw()
+
+        for entry in G_PathHelper.EncodingList:
+            sourceDir = entry[0]
+            targetDir = entry[1]
+            encodeHandler = DirectoryManager(sourceDir, sourceDir)
+            res = encodeHandler.EncodeFile(targetDir)
+            if res:
+                break
+        if not res:
+            break
+
 
 class DirectoryManager:
     MovieFile_Exts = []
@@ -1029,6 +1052,58 @@ class DirectoryManager:
                     raise IndexError(f"Incorrect user input: {user_input}")
             except:
                 print(f"Invalid input: {user_input}")
+
+    def EncodeFile(self, EncodePath:Path) -> bool:
+        res = True
+        if len(self.MovieFiles) > 0:
+            for movie in self.MovieFiles:
+                relativePath = movie.parent.relative_to(self.LibraryPath)
+                targetPath = EncodePath / relativePath
+                targetPath.mkdir(parents=True, exist_ok=True)
+                targetFile = targetPath / movie.with_suffix(".mkv").name
+                #check matching files
+                for match_ext in self.Match_Exts:
+                    match = movie.with_suffix(match_ext)
+                    if match.exists():
+                        match_target = targetPath / match.name
+                        if not match_target.exists():
+                            match.copy_into(targetPath)
+                if not targetFile.exists():
+                    res = ExecFFMPEG(sourceFile=movie, targetFile=targetFile)
+                    if not res:
+                        relativePath = movie.relative_to(self.LibraryPath)
+                        with open(G_PathHelper.LogFile, mode="+a", encoding="utf-8") as f:
+                            f.write(f"FFMPEG Error {str(relativePath)}\n")
+                        print(f"Encoding {movie.name} encountered an error. Moving to failure dir")
+                        badPath = G_PathHelper.BadRaw / relativePath
+                        movie.rename(badPath)
+                    else:
+                        return res
+                
+        
+        if len(self.AudioFiles) > 0:
+            for audio in self.AudioFiles:
+                relativePath = audio.parent.relative_to(self.LibraryPath)
+                targetPath = EncodePath / relativePath
+                targetPath.mkdir(parents=True, exist_ok=True)
+                targetFile = targetPath / audio.with_suffix(".mp3").name
+                if not targetFile.exists():
+                    res = ExecAudioFFMPEG(sourceFile=audio, targetFile=targetFile)
+                    if not res:
+                        relativePath = audio.relative_to(self.LibraryPath)
+                        with open(G_PathHelper.LogFile, mode="+a", encoding="utf-8") as f:
+                            f.write(f"FFMPEG Error {str(relativePath)}\n")
+                        print(f"Encoding {audio.name} encountered an error. Moving to failure dir")
+                        badPath = G_PathHelper.BadRaw / relativePath
+                        audio.rename(badPath)
+                    else:
+                        return res
+        print(f"Finished encoding {self.DirectoryPath.name} ({res})")
+            
+        RemoveEmptyDirs(self.DirectoryPath)
+        RemoveEmptyDirs(EncodePath)
+        return False
+    # End EncodeFile
 
 
     def EncodeDirectory(self, EncodePath:Path) -> bool:

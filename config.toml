@@ -7,6 +7,7 @@ version = "1.0"
 LogFile = 'A:\Media\Source\Video-Raw\CorruptedMedia.txt'
 # Directory to move files to while processing
 Staging = 'A:\Media\Staging'
+BadRaw = 'A:\Media\BadRaw'
 Libraries = [
     {name = "Anime", path = 'D:\Media\Libraries\Anime'},
     {name = "Movies", path = 'D:\Media\Libraries\Movies'},
@@ -51,7 +52,21 @@ CleanEpisodeList = [
 ]
 # Jellyfin server looks for these forlders for specific items
 # Ignore these folders for sorting files
-IgnoreDirs = ["behind the scenes","deleted scenes","interviews","scenes","samples","shorts","featurettes","clips","other","extras","trailers","theme-music","backdrops"]
+IgnoreDirs = [
+    "backdrops",
+    "behind the scenes",
+    "clips",
+    "deleted scenes",
+    "extras",
+    "featurettes",
+    "interviews",
+    "other",
+    "samples",
+    "scenes",
+    "shorts",
+    "theme-music",
+    "trailers",
+]
 
 [CRDL]
 # For use with https://github.com/Arutsuyo/wrapped-crunchyroll-downloader.git
