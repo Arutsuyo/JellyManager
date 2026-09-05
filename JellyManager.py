@@ -1181,6 +1181,8 @@ def main():
             preScan = False
             if user_input == "y":
                 preScan = True
+            crdl_manager = DirectoryManager(G_PathHelper.CRDL_Path, G_PathHelper.CRDL_Path)
+            crdl_manager.SendCRDLToRaw()
             for entry in G_PathHelper.EncodingList:
                 encode_list.append([DirectoryManager(entry[0], entry[0], preScan=preScan), entry[1]])
             for encode_pair in encode_list:
