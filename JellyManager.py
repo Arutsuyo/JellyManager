@@ -430,6 +430,7 @@ def GetFFMPEGArgs(mediaPath:Path):
     probe = ffmpeg.probe(mediaPath)
 
     detect_subtitles = False
+    detect_attachment = False
     num_streams_audio = 0
     num_streams_video = 0
     media_args = []
@@ -453,6 +454,13 @@ def GetFFMPEGArgs(mediaPath:Path):
                 media_args.extend(["-c:s", "srt"])
             else:
                 media_args.extend(["-c:s", "copy"])
+
+        if stream['codec_type'] == 'attachment':
+            if stream['codec_name'] == 'ttf' or stream['codec_name'] == 'otf':
+                stream_map.extend(["-map", f"0:{stream["index"]}"])
+                if not detect_attachment:
+                    detect_attachment = True
+                    media_args.extend(["-c:t", "copy"])
 
     media_args[:0] = stream_map
     return media_args
@@ -522,7 +530,8 @@ def ExecFFMPEG(sourceFile:Path, targetFile:Path):
         arguments,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,  # Merge stderr into stdout to catch all errors
-        text=True # Returns strings instead of bytes
+        text=True, # Returns strings instead of bytes
+        encoding="utf-8"
     )
 
     safeFlag = False
