@@ -455,12 +455,22 @@ def GetFFMPEGArgs(mediaPath:Path):
             else:
                 media_args.extend(["-c:s", "copy"])
 
-        if stream['codec_type'] == 'attachment':
-            if stream['codec_name'] == 'ttf' or stream['codec_name'] == 'otf':
-                stream_map.extend(["-map", f"0:{stream["index"]}"])
-                if not detect_attachment:
-                    detect_attachment = True
-                    media_args.extend(["-c:t", "copy"])
+        try:
+            if stream['codec_type'] == 'attachment':
+                codec_name = stream.get('codec_name', False)
+                if not codec_name:
+                    tags = stream['tags']
+                    filename_tag = Path(tags['filename'])
+                    codec_name = filename_tag.suffix[1:] # Remove '.'
+                if codec_name == 'ttf' or codec_name == 'otf':
+                    stream_map.extend(["-map", f"0:{stream["index"]}"])
+                    if not detect_attachment:
+                        detect_attachment = True
+                        media_args.extend(["-c:t", "copy"])
+        except:
+            
+            raise Exception("Stream:Attachment Error")
+    
 
     media_args[:0] = stream_map
     return media_args
