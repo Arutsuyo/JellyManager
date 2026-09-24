@@ -860,6 +860,10 @@ class DirectoryManager:
     def CleanEpisodeTitles(self):
         for movie in self.MovieFiles:
             name_stem = movie.stem
+            
+            # Remove []
+            name_stem = re.sub(r'\[.*?\]', '', name_stem)
+
             for rep_string in self.CleanEpisodeNameList:
                 f_string = rep_string[0]
                 r_string = rep_string[1]
