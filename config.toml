@@ -4,7 +4,8 @@ version = "1.0"
 
 
 [Media]
-LogFile = 'A:\Media\Source\Video-Raw\CorruptedMedia.txt'
+LogBadMediaFile = 'A:\Media\Source\CorruptedMedia.txt'
+LogFile = 'A:\Media\Source\JellyLog.txt'
 # Directory to move files to while processing
 Staging = 'A:\Media\Staging'
 BadRaw = 'A:\Media\BadRaw'

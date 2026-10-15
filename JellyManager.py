@@ -29,6 +29,7 @@ def run_once(func):
 def initialize_system():
     config = load_config()
     PathHelper.LogFile = Path(config["Media"]["LogFile"])
+    PathHelper.LogBadMediaFile = Path(config["Media"]["LogBadMediaFile"])
     PathHelper.StagingPath = Path(config["Media"]["Staging"])
     PathHelper.BadRaw = Path(config["Media"]["BadRaw"])
     
@@ -89,6 +90,7 @@ class CorruptException(Exception):
 class PathHelper:
     # File to dump corrupted media found by ffmpeg
     LogFile = Path("")
+    LogBadMediaFile = Path("")
 
     StagingPath = Path("")
     BadRaw = Path("")
@@ -152,6 +154,8 @@ class PathHelper:
         while True:
             print("Available Encodes:")
             enum_list = list(enumerate(self.EncodeDirs.items()))
+
+
             for idx, item in enum_list:
                 print(f"[{idx}] {item[0]}")
 
@@ -518,9 +522,14 @@ def ExecFFMPEG(sourceFile:Path, targetFile:Path):
         "-map_metadata", "0",
     ]
     try:
+        with open(G_PathHelper.LogFile, mode="+a", encoding="utf-8") as f:
+            f.write(textwrap.dedent(f"""
+                Encode Source: {sourceFile}
+                  ->   Target: {targetFile}\
+                """))
         arguments.extend(GetFFMPEGArgs(sourceFile))
     except:
-        with open(G_PathHelper.LogFile, mode="+a", encoding="utf-8") as f:
+        with open(G_PathHelper.LogBadMediaFile, mode="+a", encoding="utf-8") as f:
             target = G_PathHelper.GetRelativeToSource(sourceFile)
             f.write(f"FFPROBE error {str(target)}\n")
         print()
@@ -541,7 +550,8 @@ def ExecFFMPEG(sourceFile:Path, targetFile:Path):
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,  # Merge stderr into stdout to catch all errors
         text=True, # Returns strings instead of bytes
-        encoding="utf-8"
+        encoding="utf-8",
+        errors="replace"
     )
 
     safeFlag = False
@@ -563,7 +573,7 @@ def ExecFFMPEG(sourceFile:Path, targetFile:Path):
         process.kill()
         process.kill()
         process.kill()
-        with open(G_PathHelper.LogFile, mode="+a", encoding="utf-8") as f:
+        with open(G_PathHelper.LogBadMediaFile, mode="+a", encoding="utf-8") as f:
             target = G_PathHelper.GetRelativeToSource(sourceFile)
             f.write(f"Corrupt Frames {str(target)}\n")
         print()
@@ -610,6 +620,11 @@ def ExecAudioFFMPEG(sourceFile:Path, targetFile:Path):
     
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     try:
+        with open(G_PathHelper.LogFile, mode="+a", encoding="utf-8") as f:
+            f.write(textwrap.dedent(f"""
+                Encode Source: {sourceFile}
+                  ->   Target: {targetFile}\
+                """))
         result = subprocess.run(arguments)
     finally:
         signal.signal(signal.SIGINT, signal.SIG_DFL)
@@ -834,7 +849,7 @@ class DirectoryManager:
                 print()
                 print("ERROR - These files need fixing:")
                 print(*failure_list, "\n")
-                with open(G_PathHelper.LogFile, mode="+a", encoding="utf-8") as f:
+                with open(G_PathHelper.LogBadMediaFile, mode="+a", encoding="utf-8") as f:
                     for entry in failure_list:
                         f.write(f"FFProbe Error {str(entry)}\n")
                     
@@ -1095,7 +1110,7 @@ class DirectoryManager:
                     res = ExecFFMPEG(sourceFile=movie, targetFile=targetFile)
                     if not res:
                         relativePath = movie.relative_to(self.LibraryPath)
-                        with open(G_PathHelper.LogFile, mode="+a", encoding="utf-8") as f:
+                        with open(G_PathHelper.LogBadMediaFile, mode="+a", encoding="utf-8") as f:
                             f.write(f"FFMPEG Error {str(relativePath)}\n")
                         print(f"Encoding {movie.name} encountered an error. Moving to failure dir")
                         badPath = G_PathHelper.BadRaw / relativePath
@@ -1114,7 +1129,7 @@ class DirectoryManager:
                     res = ExecAudioFFMPEG(sourceFile=audio, targetFile=targetFile)
                     if not res:
                         relativePath = audio.relative_to(self.LibraryPath)
-                        with open(G_PathHelper.LogFile, mode="+a", encoding="utf-8") as f:
+                        with open(G_PathHelper.LogBadMediaFile, mode="+a", encoding="utf-8") as f:
                             f.write(f"FFMPEG Error {str(relativePath)}\n")
                         print(f"Encoding {audio.name} encountered an error. Moving to failure dir")
                         badPath = G_PathHelper.BadRaw / relativePath
@@ -1182,7 +1197,7 @@ def main():
             [2] Processing (Copy Dir to Staging, Rename Series)
             [3] Edit Staged Directory
             [4] Finalize (Copy from Staging folder to Library)
-            [0] Run Crunchyroll Downloader
+            [0] Move CRDL Files
             [q] quit - Default
             """))
         
@@ -1251,7 +1266,8 @@ def main():
                 copied_path = staged_path.copy_into(library_path)
 
         if userInput == "0":
-            G_PathHelper.RunCRDL()
+            crdl_manager = DirectoryManager(G_PathHelper.CRDL_Path, G_PathHelper.CRDL_Path)
+            crdl_manager.SendCRDLToRaw()
 
             
         print()
