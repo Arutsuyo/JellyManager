@@ -758,7 +758,6 @@ def RunCRDLInstance(url_path:Path, language:str):
 
 def EncodeFIFO(EncodingList:list[tuple[DirectoryManager, Path]]):
     encodedMedia = 0
-    badMedia = 0
     try:
         while True:
             workDone = False
@@ -766,6 +765,7 @@ def EncodeFIFO(EncodingList:list[tuple[DirectoryManager, Path]]):
             for DMInst, target in EncodingList:
                 DMInst.SetDirectoryFiles(False)
                 if workDone := DMInst.EncodeFile(target):
+                    encodedMedia += 1
                     break
 
             if not workDone:
@@ -776,7 +776,7 @@ def EncodeFIFO(EncodingList:list[tuple[DirectoryManager, Path]]):
         print(e)
 
     finally:
-        print(f"Encoded: {encodedMedia}\nBad Raws: {badMedia}")
+        print(f"Encoded: {encodedMedia}")
         print("Stopping FIFO Encoding. . .")
         G_PathHelper.CleanupDirs()
     # End EncodeFIFO
