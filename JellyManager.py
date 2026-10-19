@@ -759,12 +759,10 @@ def RunCRDLInstance(url_path:Path, language:str):
 def EncodeFIFO(EncodingList:list[tuple[DirectoryManager, Path]]):
     encodedMedia = 0
     badMedia = 0
-    crdl_manager = DirectoryManager(G_PathHelper.CRDL_Path, G_PathHelper.CRDL_Path)
     try:
         while True:
             workDone = False
-            crdl_manager.SendCRDLToRaw()
-
+            
             for DMInst, target in EncodingList:
                 DMInst.SetDirectoryFiles(False)
                 if workDone := DMInst.EncodeFile(target):
@@ -1179,36 +1177,12 @@ def main():
         if not userInput or userInput == "q":
             break
 
-        if userInput == "-":
+        if userInput == "1":
             encode_list = []
             preScan = False
             for entry in G_PathHelper.EncodingList:
                 encode_list.append([DirectoryManager(entry[0], entry[0], preScan=preScan), entry[1]])
             EncodeFIFO(encode_list)
-            
-        if userInput == "1":
-            encode_list = []
-            preScan = False
-            crdl_manager = DirectoryManager(G_PathHelper.CRDL_Path, G_PathHelper.CRDL_Path)
-            crdl_manager.SendCRDLToRaw()
-            for entry in G_PathHelper.EncodingList:
-                encode_list.append([DirectoryManager(entry[0], entry[0], preScan=preScan), entry[1]])
-            for encode_pair in encode_list:
-                if not encode_pair[0].EncodeDirectory(encode_pair[1]):
-                    print("Encoding Error: Halting encoding routine")
-                    break
-            
-        if userInput == "1+":
-            encode_list = []
-            preScan = True
-            crdl_manager = DirectoryManager(G_PathHelper.CRDL_Path, G_PathHelper.CRDL_Path)
-            crdl_manager.SendCRDLToRaw()
-            for entry in G_PathHelper.EncodingList:
-                encode_list.append([DirectoryManager(entry[0], entry[0], preScan=preScan), entry[1]])
-            for encode_pair in encode_list:
-                if not encode_pair[0].EncodeDirectory(encode_pair[1]):
-                    print("Encoding Error: Halting encoding routine")
-                    break
             
 
         if userInput == "2":
