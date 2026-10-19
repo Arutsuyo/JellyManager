@@ -32,6 +32,7 @@ def initialize_system():
     PathHelper.LogBadMediaFile = Path(config["Media"]["LogBadMediaFile"])
     PathHelper.StagingPath = Path(config["Media"]["Staging"])
     PathHelper.BadRaw = Path(config["Media"]["BadRaw"])
+    PathHelper.BadRaw.mkdir(parents=True, exist_ok=True)
     
     for entry in config["Media"]["Libraries"]:
         PathHelper.LibraryDirs[entry["name"]] = Path(entry["path"])
@@ -391,23 +392,24 @@ def GetAudioStreamArgs(AudioStream, StreamNumber:int):
     target_bitrate = num_channels * sampleRate
     out_args.extend([f"-b:a:{StreamNumber}", f"{target_bitrate / 1000:.0f}K"])
 
-    if num_channels == 1:
-        # Mono
-        out_args.extend([f"-filter:a:{StreamNumber}", "aformat=channel_layouts=mono"])
-
-    elif num_channels == 2:
-        # Stereo
-        out_args.extend([f"-filter:a:{StreamNumber}", "aformat=channel_layouts=stereo"])
-
-    elif num_channels == 6:
+    if num_channels >= 8:
+        # 7.1 Surround
+        out_args.extend([f"-filter:a:{StreamNumber}", "aformat=channel_layouts=7.1"])
+        out_args.extend([f"-mapping_family:a:{StreamNumber}", "1"])
+        
+    elif num_channels >= 6:
         # 5.1 Surround
         out_args.extend([f"-filter:a:{StreamNumber}", "channelmap=channel_layout=5.1(side),aformat=channel_layouts=5.1"])
         out_args.extend([f"-mapping_family:a:{StreamNumber}", "1"])
 
-    elif num_channels == 8:
-        # 7.1 Surround
-        out_args.extend([f"-filter:a:{StreamNumber}", "aformat=channel_layouts=7.1"])
-        out_args.extend([f"-mapping_family:a:{StreamNumber}", "1"])
+    elif num_channels >= 2:
+        # Stereo
+        out_args.extend([f"-filter:a:{StreamNumber}", "aformat=channel_layouts=stereo"])
+
+    elif num_channels == 1:
+        # Mono
+        out_args.extend([f"-filter:a:{StreamNumber}", "aformat=channel_layouts=mono"])
+
 
     langList = list(PathHelper.LanguageMap.items())
     langKey = langList[0][0]
@@ -534,7 +536,7 @@ def ExecFFMPEG(sourceFile:Path, targetFile:Path):
             f.write(f"FFPROBE error {str(target)}\n")
         print()
         print("FFPROBE error detected, Skipping file...")
-        return True
+        return False
         
 
     arguments.append(str(targetFile))
@@ -554,7 +556,6 @@ def ExecFFMPEG(sourceFile:Path, targetFile:Path):
         errors="replace"
     )
 
-    safeFlag = False
     try:
         while process.poll() is None:
             parseFFMPEGOutput(process)
@@ -578,7 +579,6 @@ def ExecFFMPEG(sourceFile:Path, targetFile:Path):
             f.write(f"Corrupt Frames {str(target)}\n")
         print()
         print("Corrupt Frames detected, Skipping file...")
-        safeFlag = True
 
     except Exception as e:
         print()
@@ -592,17 +592,16 @@ def ExecFFMPEG(sourceFile:Path, targetFile:Path):
     print()
     parseFFMPEGOutput(process, True)
     print()
-    pCode = process.returncode
-    print(f"FFMPEG({pCode}) exited")
+    print(f"FFMPEG({process.returncode}) exited")
 
-    if pCode:
+    if process.returncode:
         try:
             print(f"recycling {targetFile.parent.name}/{targetFile.name}")
             send2trash(targetFile)
         except FileNotFoundError:
             print("File failed to save, continuing")
 
-    return pCode == 0 or safeFlag
+    return process.returncode == 0
 
 
 def ExecAudioFFMPEG(sourceFile:Path, targetFile:Path):
@@ -758,24 +757,32 @@ def RunCRDLInstance(url_path:Path, language:str):
     return result
     # End RunCRDL
 
-def RunEncodingRoutine(prescan:bool):
-    for entry in G_PathHelper.EncodingList:
-        DirectoryManager(entry[0], entry[0], preScan=prescan)
-    res = True
-    while True:
-        crdl_manager = DirectoryManager(G_PathHelper.CRDL_Path, G_PathHelper.CRDL_Path)
-        crdl_manager.SendCRDLToRaw()
+def EncodeFIFO(EncodingList:list[tuple[DirectoryManager, Path]]):
+    encodedMedia = 0
+    badMedia = 0
+    crdl_manager = DirectoryManager(G_PathHelper.CRDL_Path, G_PathHelper.CRDL_Path)
+    try:
+        while True:
+            workDone = False
+            crdl_manager.SendCRDLToRaw()
 
-        for entry in G_PathHelper.EncodingList:
-            sourceDir = entry[0]
-            targetDir = entry[1]
-            encodeHandler = DirectoryManager(sourceDir, sourceDir)
-            res = encodeHandler.EncodeFile(targetDir)
-            if res:
+            for DMInst, target in EncodingList:
+                DMInst.SetDirectoryFiles(False)
+                if workDone := DMInst.EncodeFile(target):
+                    break
+
+            if not workDone:
                 break
-        if not res:
-            break
 
+
+    except Exception as e:
+        print(e)
+
+    finally:
+        print(f"Encoded: {encodedMedia}\nBad Raws: {badMedia}")
+        print("Stopping FIFO Encoding. . .")
+        G_PathHelper.CleanupDirs()
+    # End EncodeFIFO
 
 class DirectoryManager:
     MovieFile_Exts = []
@@ -857,18 +864,19 @@ class DirectoryManager:
     # End __init__
 
 
-    def SetDirectoryFiles(self):
-        print()
-        print(f"{self.DirectoryPath.name} Contains")
+    def SetDirectoryFiles(self, printFound:bool=True):
         # Gather all files
         fileList = sorted([p for p in self.DirectoryPath.rglob("*") if p.is_file() and p.stat().st_size])
         # filter Files by type
-        print(f"Files Found: {len(fileList)}")
         self.AudioFiles = [f for f in fileList if f.suffix in self.AudioFile_Exts]
-        print(f"Audio Found: {len(self.AudioFiles)}")
         self.MovieFiles = [f for f in fileList if f.suffix in self.MovieFile_Exts]
-        print(f"Movies Found: {len(self.MovieFiles)}")
-        print()
+        if printFound:
+            print()
+            print(f"{self.DirectoryPath.name} Contains")
+            print(f"Movies: {len(self.MovieFiles)}")
+            print(f"Audio: {len(self.AudioFiles)}")
+            print()
+
     # End SetDirectoryFiles
 
 
@@ -1092,7 +1100,6 @@ class DirectoryManager:
                 print(f"Invalid input: {user_input}")
 
     def EncodeFile(self, EncodePath:Path) -> bool:
-        res = True
         if len(self.MovieFiles) > 0:
             for movie in self.MovieFiles:
                 relativePath = movie.parent.relative_to(self.LibraryPath)
@@ -1114,9 +1121,8 @@ class DirectoryManager:
                             f.write(f"FFMPEG Error {str(relativePath)}\n")
                         print(f"Encoding {movie.name} encountered an error. Moving to failure dir")
                         badPath = G_PathHelper.BadRaw / relativePath
-                        movie.rename(badPath)
-                    else:
-                        return res
+                        movie.replace(badPath)
+                    return True
                 
         
         if len(self.AudioFiles) > 0:
@@ -1134,10 +1140,9 @@ class DirectoryManager:
                         print(f"Encoding {audio.name} encountered an error. Moving to failure dir")
                         badPath = G_PathHelper.BadRaw / relativePath
                         audio.rename(badPath)
-                    else:
-                        return res
-        print(f"Finished encoding {self.DirectoryPath.name} ({res})")
-            
+                    return True
+        print(f"Finished encoding {self.DirectoryPath.name}")
+
         RemoveEmptyDirs(self.DirectoryPath)
         RemoveEmptyDirs(EncodePath)
         return False
@@ -1193,23 +1198,40 @@ def main():
     while True:
         userInput = input(textwrap.dedent("""
             Choose Option:
-            [1] Encoding (FFMPEG Video:AV1-SVT Audio:mp3)
+            [1] Encoding (FFMPEG Video:AV1-SVT Audio:mp3, [1+] to pre-scan for invalid media)
             [2] Processing (Copy Dir to Staging, Rename Series)
             [3] Edit Staged Directory
             [4] Finalize (Copy from Staging folder to Library)
             [0] Move CRDL Files
+            [-] Encoding -Active FIFO- (FFMPEG Video:AV1-SVT Audio:mp3)
             [q] quit - Default
             """))
         
         if not userInput or userInput == "q":
             break
 
+        if userInput == "-":
+            encode_list = []
+            preScan = False
+            for entry in G_PathHelper.EncodingList:
+                encode_list.append([DirectoryManager(entry[0], entry[0], preScan=preScan), entry[1]])
+            EncodeFIFO(encode_list)
+            
         if userInput == "1":
             encode_list = []
-            user_input = input(f"Pre-Scan Folders for ffmpeg issues? (N/y)")
             preScan = False
-            if user_input == "y":
-                preScan = True
+            crdl_manager = DirectoryManager(G_PathHelper.CRDL_Path, G_PathHelper.CRDL_Path)
+            crdl_manager.SendCRDLToRaw()
+            for entry in G_PathHelper.EncodingList:
+                encode_list.append([DirectoryManager(entry[0], entry[0], preScan=preScan), entry[1]])
+            for encode_pair in encode_list:
+                if not encode_pair[0].EncodeDirectory(encode_pair[1]):
+                    print("Encoding Error: Halting encoding routine")
+                    break
+            
+        if userInput == "1+":
+            encode_list = []
+            preScan = True
             crdl_manager = DirectoryManager(G_PathHelper.CRDL_Path, G_PathHelper.CRDL_Path)
             crdl_manager.SendCRDLToRaw()
             for entry in G_PathHelper.EncodingList:
