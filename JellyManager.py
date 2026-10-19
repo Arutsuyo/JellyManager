@@ -762,7 +762,7 @@ def EncodeFIFO(EncodingList:list[tuple[DirectoryManager, Path]]):
     try:
         while True:
             workDone = False
-            
+
             for DMInst, target in EncodingList:
                 DMInst.SetDirectoryFiles(False)
                 if workDone := DMInst.EncodeFile(target):
@@ -1165,12 +1165,11 @@ def main():
     while True:
         userInput = input(textwrap.dedent("""
             Choose Option:
-            [1] Encoding (FFMPEG Video:AV1-SVT Audio:mp3, [1+] to pre-scan for invalid media)
+            [1] Encoding (FFMPEG Video:AV1-SVT Audio:mp3)
             [2] Processing (Copy Dir to Staging, Rename Series)
             [3] Edit Staged Directory
             [4] Finalize (Copy from Staging folder to Library)
             [0] Move CRDL Files
-            [-] Encoding -Active FIFO- (FFMPEG Video:AV1-SVT Audio:mp3)
             [q] quit - Default
             """))
         
