@@ -1,9 +1,10 @@
+from os import pipe
 from pathlib import Path
 import textwrap
 from send2trash import send2trash
 import re
 import subprocess
-import signal
+import os
 import ffmpeg
 import time
 import tomllib
@@ -27,6 +28,7 @@ def run_once(func):
 # Usage:
 @run_once
 def initialize_system():
+    os.chdir(Path(__file__).resolve().parent)
     config = load_config()
     PathHelper.LogFile = Path(config["Media"]["LogFile"])
     PathHelper.LogBadMediaFile = Path(config["Media"]["LogBadMediaFile"])
@@ -86,6 +88,10 @@ def flatten_elements(mixed_list):
 
 class CorruptException(Exception):
     """Raised when FFMPEG encounters a corrupted download"""
+    pass
+
+class StopEncodingException(Exception):
+    """Raised when a keyboard interrupt stops the encoding routine"""
     pass
 
 class PathHelper:
@@ -483,7 +489,13 @@ def GetFFMPEGArgs(mediaPath:Path):
 
 def parseFFMPEGOutput(process:subprocess.Popen, finishDump:bool = False):
     skip_list = [
-        "Starting new cluster due to timestamp"
+        "Starting new cluster due to timestamp",
+        "_STATISTICS_",
+        "Discarding stream metadata",
+        "Could not find codec parameters",
+        "www.gyan.dev",
+        "  lib",
+        "Consider increasing the value for the"
     ]
     error_list = [
         "error while decoding",
@@ -495,6 +507,9 @@ def parseFFMPEGOutput(process:subprocess.Popen, finishDump:bool = False):
     if process.stdout:
         seg_out = False
         for line in process.stdout:
+            if any(sub in line for sub in skip_list):
+                continue
+            
             end = ""
             if overwrite_trigger in line:
                 seg_out = True
@@ -505,9 +520,6 @@ def parseFFMPEGOutput(process:subprocess.Popen, finishDump:bool = False):
                 print()
             print(line, end=end, flush=True)  # Print the process output to your console
 
-            if any(sub in line for sub in skip_list):
-                continue
-            
             # Check for the error message
             if any(sub in line for sub in error_list):
                 if not finishDump:
@@ -516,40 +528,59 @@ def parseFFMPEGOutput(process:subprocess.Popen, finishDump:bool = False):
         raise Exception("process.stdout Not Found!")
     # End parseFFMPEGOutput
 
-def ExecFFMPEG(sourceFile:Path, targetFile:Path):
+def ExecFFMPEG(sourceFile:Path, targetFile:Path) -> tuple[bool, bool]:
 
-    arguments = [
-        "ffmpeg",
-        "-i", str(sourceFile),
-        "-map_metadata", "0",
-    ]
-    try:
-        with open(G_PathHelper.LogFile, mode="+a", encoding="utf-8") as f:
-            f.write(textwrap.dedent(f"""
-                Encode Source: {sourceFile}
-                  ->   Target: {targetFile}\
-                """))
-        arguments.extend(GetFFMPEGArgs(sourceFile))
-    except:
-        with open(G_PathHelper.LogBadMediaFile, mode="+a", encoding="utf-8") as f:
-            target = G_PathHelper.GetRelativeToSource(sourceFile)
-            f.write(f"FFPROBE error {str(target)}\n")
-        print()
-        print("FFPROBE error detected, Skipping file...")
-        return False
-        
+    if sourceFile.suffix in DirectoryManager.AudioFile_Exts:
+        # Audio File
+        arguments = [
+            "ffmpeg",
+            "-i", str(sourceFile),
+            "-q:a",
+            "0",
+            "-map_metadata",
+            "0",
+            "-id3v2_version",
+            "3",
+            str(targetFile)
+        ]
+        # Audio File
 
-    arguments.append(str(targetFile))
-        
+    else:
+        # Movie File
+        arguments = [
+            "ffmpeg",
+            "-i", str(sourceFile),
+            "-map_metadata", "0",
+        ]
+        try:
+            with open(G_PathHelper.LogFile, mode="+a", encoding="utf-8") as f:
+                f.write(textwrap.dedent(f"""
+                    Encode: {sourceFile}
+                    """))
+            arguments.extend(GetFFMPEGArgs(sourceFile))
+        except:
+            with open(G_PathHelper.LogBadMediaFile, mode="+a", encoding="utf-8") as f:
+                target = G_PathHelper.GetRelativeToSource(sourceFile)
+                f.write(f"FFPROBE error {str(target)}\n")
+            print()
+            print("FFPROBE error detected, Skipping file...")
+            return False, False
+    
+        arguments.append(str(targetFile))
+        # Movie File
+            
     print()
     print("FFMPEG:")
     print(*arguments, " ")
     print()
 
+    stop_flag = False
+
     # Start the process with stdout and stderr captured
     process = subprocess.Popen(
         arguments,
         stdout=subprocess.PIPE,
+        stdin=subprocess.PIPE,
         stderr=subprocess.STDOUT,  # Merge stderr into stdout to catch all errors
         text=True, # Returns strings instead of bytes
         encoding="utf-8",
@@ -562,76 +593,44 @@ def ExecFFMPEG(sourceFile:Path, targetFile:Path):
             time.sleep(0.1)
 
     except KeyboardInterrupt:
+        stop_flag = True
         print()
-        print("Processing Interrupt, sending Kill")
-        # Tripple on purpose
-        process.kill()
-        process.kill()
+        print("Processing FFMPEG Interrupt. . .", flush=True)
         process.kill()
 
     except CorruptException as e:
-        # Tripple on purpose
-        process.kill()
-        process.kill()
-        process.kill()
         with open(G_PathHelper.LogBadMediaFile, mode="+a", encoding="utf-8") as f:
             target = G_PathHelper.GetRelativeToSource(sourceFile)
             f.write(f"Corrupt Frames {str(target)}\n")
         print()
-        print("Corrupt Frames detected, Skipping file...")
+        print("Corrupt Frames detected, Skipping file...", flush=True)
+        process.kill()
 
     except Exception as e:
         print()
-        print(f"An exception occurred: {e}")
-        # Tripple on purpose
-        process.kill()
-        process.kill()
+        print(f"An exception occurred: {e}", flush=True)
         process.kill()
 
-    process.wait()
-    print()
+    print("Closing FFMPEG. . .", flush=True)
+    while process.poll() is None:
+        parseFFMPEGOutput(process, True)
+        time.sleep(0.1)
+
+    ret_code = process.wait()
+
+    print("Flushing Buffer")
     parseFFMPEGOutput(process, True)
     print()
-    print(f"FFMPEG({process.returncode}) exited")
+    print(f"FFMPEG({ret_code}) exited")
 
-    if process.returncode:
+    if ret_code:
         try:
             print(f"recycling {targetFile.parent.name}/{targetFile.name}")
             send2trash(targetFile)
         except FileNotFoundError:
             print("File failed to save, continuing")
 
-    return process.returncode == 0
-
-
-def ExecAudioFFMPEG(sourceFile:Path, targetFile:Path):
-    arguments = [
-        "ffmpeg",
-        "-i", str(sourceFile),
-        "-q:a",
-        "0",
-        "-map_metadata",
-        "0",
-        "-id3v2_version",
-        "3",
-        str(targetFile)
-    ]
-    
-    signal.signal(signal.SIGINT, signal.SIG_IGN)
-    try:
-        with open(G_PathHelper.LogFile, mode="+a", encoding="utf-8") as f:
-            f.write(textwrap.dedent(f"""
-                Encode Source: {sourceFile}
-                  ->   Target: {targetFile}\
-                """))
-        result = subprocess.run(arguments)
-    finally:
-        signal.signal(signal.SIGINT, signal.SIG_DFL)
-
-    if result.returncode:
-        send2trash(targetFile)
-
-    return result.returncode == 0
+    return (ret_code == 0), stop_flag
 
 
 def parseCRDLOutput(process:subprocess.Popen):
@@ -1114,7 +1113,9 @@ class DirectoryManager:
                         if not match_target.exists():
                             match.copy_into(targetPath)
                 if not targetFile.exists():
-                    res = ExecFFMPEG(sourceFile=movie, targetFile=targetFile)
+                    res, stop_flag = ExecFFMPEG(sourceFile=movie, targetFile=targetFile)
+                    if stop_flag:
+                        raise StopEncodingException("User Inturupt Detected")
                     if not res:
                         relativePath = movie.relative_to(self.LibraryPath)
                         with open(G_PathHelper.LogBadMediaFile, mode="+a", encoding="utf-8") as f:
@@ -1132,14 +1133,16 @@ class DirectoryManager:
                 targetPath.mkdir(parents=True, exist_ok=True)
                 targetFile = targetPath / audio.with_suffix(".mp3").name
                 if not targetFile.exists():
-                    res = ExecAudioFFMPEG(sourceFile=audio, targetFile=targetFile)
+                    res, stop_flag = ExecFFMPEG(sourceFile=audio, targetFile=targetFile)
+                    if stop_flag:
+                        raise StopEncodingException("User Inturupt Detected")
                     if not res:
                         relativePath = audio.relative_to(self.LibraryPath)
                         with open(G_PathHelper.LogBadMediaFile, mode="+a", encoding="utf-8") as f:
                             f.write(f"FFMPEG Error {str(relativePath)}\n")
                         print(f"Encoding {audio.name} encountered an error. Moving to failure dir")
                         badPath = G_PathHelper.BadRaw / relativePath
-                        audio.rename(badPath)
+                        audio.replace(badPath)
                     return True
         print(f"Finished encoding {self.DirectoryPath.name}")
 
@@ -1149,43 +1152,9 @@ class DirectoryManager:
     # End EncodeFile
 
 
-    def EncodeDirectory(self, EncodePath:Path) -> bool:
-        res = True
-        if len(self.MovieFiles) > 0:
-            for movie in self.MovieFiles:
-                relativePath = movie.parent.relative_to(self.LibraryPath)
-                targetPath = EncodePath / relativePath
-                targetPath.mkdir(parents=True, exist_ok=True)
-                targetFile = targetPath / movie.with_suffix(".mkv").name
-                #check matching files
-                for match_ext in self.Match_Exts:
-                    match = movie.with_suffix(match_ext)
-                    if match.exists():
-                        match_target = targetPath / match.name
-                        if not match_target.exists():
-                            match.copy_into(targetPath)
-                if not targetFile.exists():
-                    res = ExecFFMPEG(sourceFile=movie, targetFile=targetFile)
-                    if not res:
-                        print(f"Encoding {movie.name} encountered an error. Stopping Encoding loop")
-                        break
-                
-        
-        if len(self.AudioFiles) > 0:
-            for audio in self.AudioFiles:
-                relativePath = audio.parent.relative_to(self.LibraryPath)
-                targetPath = EncodePath / relativePath
-                targetPath.mkdir(parents=True, exist_ok=True)
-                targetFile = targetPath / audio.with_suffix(".mp3").name
-                if not targetFile.exists():
-                    res = ExecAudioFFMPEG(sourceFile=audio, targetFile=targetFile)
-                    if not res:
-                        break
-        print(f"Finished encoding {self.DirectoryPath.name} ({res})")
-            
-        RemoveEmptyDirs(self.DirectoryPath)
-        RemoveEmptyDirs(EncodePath)
-        return res
+    def EncodeDirectory(self, EncodePath:Path):
+        while self.EncodeFile(EncodePath):
+            pass
     # End EncodeDirectory
 
 # End DirectoryManager
