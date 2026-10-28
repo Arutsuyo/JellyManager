@@ -42,22 +42,26 @@ def initialize_system():
     for encodeInfo in config["Media"]["Encoding"]:
         base_path = Path(encodeInfo["Base"])
 
-        for info in encodeInfo["DirPair"]:
+        for idx, info in enumerate(encodeInfo["DirPair"]):
             source = base_path / info["Source"]
             target = base_path / info["Target"]
+            if PathHelper.PrimaryEncodingPath.name == "":  
+                PathHelper.PrimarySourcePath = source          
+                PathHelper.PrimaryEncodingPath = target
             PathHelper.EncodingList.append([source, target])
             PathHelper.SourceDirs[source.name] = source
             PathHelper.EncodeDirs[target.name] = target
 
     # Crunchyroll Downloader info
-    PathHelper.CRDL_Path = Path(config["CRDL"]["CRDL_Path"])
-    PathHelper.CRDL_Target = Path(config["CRDL"]["CRDL_Target"])
-    PathHelper.CRDL_exe = Path(config["CRDL"]["CRDL_exe"])
-    PathHelper.CRDL_TokenName = Path(config["CRDL"]["CRDL_token"])
-    PathHelper.CRDL_CurrentList = config["CRDL"]["CRDL_CurrentList"]
-    PathHelper.CRDL_FinishedList = config["CRDL"]["CRDL_FinishedList"]
-    PathHelper.CRDL_Throttle = config["CRDL"]["CRDL_Throttle"]
-    PathHelper.CRDL_LogLevel = config["CRDL"]["CRDL_LogLevel"]
+    PathHelper.CRDL_Path = Path(config["CRDL"]["Path"])
+    PathHelper.CRDL_Folder = Path(config["CRDL"]["Folder"])
+    PathHelper.CRDL_exe = Path(config["CRDL"]["exe"])
+    PathHelper.CRDL_TokenName = Path(config["CRDL"]["token"])
+    PathHelper.CRDL_CurrentList = config["CRDL"]["CurrentList"]
+    PathHelper.CRDL_FinishedList = config["CRDL"]["FinishedList"]
+    PathHelper.CRDL_Throttle = config["CRDL"]["Throttle"]
+    PathHelper.CRDL_LogLevel = config["CRDL"]["LogLevel"]
+    PathHelper.CRDL_EncodedShortcuts = config["CRDL"]["EncodedShortcuts"]
 
     PathHelper.LanguageMap = config["LanguageMap"]
 
@@ -100,17 +104,20 @@ class PathHelper:
     LogBadMediaFile = Path("")
 
     StagingPath = Path("")
+    PrimarySourcePath = Path("")
+    PrimaryEncodingPath = Path("")
     BadRaw = Path("")
     EncodingList = []
     SourceDirs = {}
     EncodeDirs = {}
     LibraryDirs = {}
+    CRDL_EncodedShortcuts: list[Path] = []
 
     LanguageMap = {}
 
     # Crunchroll Downloader info
     CRDL_Path = Path("")
-    CRDL_Target = Path("")
+    CRDL_Folder = Path("")
     CRDL_exe = Path("")
     CRDL_TokenName = Path("")
     CRDL_LogLevel = 0
@@ -162,6 +169,9 @@ class PathHelper:
             print("Available Encodes:")
             enum_list = list(enumerate(self.EncodeDirs.items()))
 
+            # Add personal Short-cuts
+            for path in G_PathHelper.CRDL_EncodedShortcuts:
+                enum_list.append((len(enum_list),(path, G_PathHelper.PrimaryEncodingPath / G_PathHelper.CRDL_Folder / path))) 
 
             for idx, item in enum_list:
                 print(f"[{idx}] {item[0]}")
@@ -205,7 +215,7 @@ class PathHelper:
         try:
             print("Cleaning CRDL Paths. . .")
             RemoveEmptyDirs(self.CRDL_Path)
-            RemoveEmptyDirs(self.CRDL_Target)
+            RemoveEmptyDirs(self.CRDL_Folder)
         except:
             pass
         
@@ -280,6 +290,7 @@ def RemoveEmptyDirs(targetPath:Path):
 
 def ChoseSubDirectory(InitialPath:Path, canChooseInitial:bool = True):
     WorkingPath = InitialPath
+    print(f"Pick a Directory from: {InitialPath}")
 
     while True:
         subdirectories = [x for x in WorkingPath.iterdir() if x.is_dir()]
@@ -323,7 +334,9 @@ def ChoseSubDirectory(InitialPath:Path, canChooseInitial:bool = True):
             if len(select_subdir) > 1:
                 print("Need more info. Matched Dirs:")
                 dir_names = [d.name for d in select_subdir]
-                print(dir_names)
+                for name in dir_names:
+                    print(name)
+                time.sleep(1)
             elif len(select_subdir) == 0:
                 print("No matching directories, try again")
             else:
@@ -628,7 +641,8 @@ def ExecFFMPEG(sourceFile:Path, targetFile:Path) -> tuple[bool, bool]:
             print(f"recycling {targetFile.parent.name}/{targetFile.name}")
             send2trash(targetFile)
         except FileNotFoundError:
-            print("File failed to save, continuing")
+            PathHelper.LogBadMediaFile
+            with open(PathHelper.LogBadMediaFile, "+a") as f: f.write(f"File failed to write: {targetFile}")
 
     return (ret_code == 0), stop_flag
 
@@ -889,7 +903,7 @@ class DirectoryManager:
                 r_string = rep_string[1]
                 if f_string in name_stem:
                     name_stem = name_stem.replace(f_string, r_string)
-            movie.rename(movie.with_stem(name_stem))
+            movie.rename(movie.with_stem(name_stem.strip()))
         
         self.SetDirectoryFiles()
 
@@ -901,7 +915,10 @@ class DirectoryManager:
         for movie in self.MovieFiles:
             print(f"Moving {movie.stem}")
             relative_path = movie.parent.relative_to(G_PathHelper.CRDL_Path)
-            targetDir = G_PathHelper.CRDL_Target / relative_path
+            if relative_path.parent.name == "Finished":
+                targetDir = G_PathHelper.PrimarySourcePath / relative_path.name
+            else:
+                targetDir = G_PathHelper.PrimarySourcePath / G_PathHelper.CRDL_Folder / relative_path
             targetDir.mkdir(parents=True, exist_ok=True)
             targetFile = targetDir / movie.name
             try:
@@ -917,9 +934,11 @@ class DirectoryManager:
     def EditMovieSeriesInfo(self) -> bool:
         SeasonNum = 1
         EpisodeNum = 1
+        ExtendEpisodeNum = 0
         seriesTitle = self.DirectoryPath.name
         skipCount = 0
         Finish = False
+        fillName = True
 
         for Movie in self.MovieFiles:
             # Check if the file is a .webm file
@@ -938,8 +957,8 @@ class DirectoryManager:
 
             _, _, match = ExtractSeasonEpisodeNum(episode_stem)
             if match:
-                if len(episode_stem) > match.end() + 2:
-                    EpisodeName = episode_stem[match.end():]
+                if len(episode_stem) > match.end() + 2 and fillName:
+                    EpisodeName = " " + episode_stem[match.end():].strip()
         
             while True:
                 res1 = None
@@ -948,7 +967,12 @@ class DirectoryManager:
                 if partNum > 0:
                     partName = f"-part-{partNum}"
 
-                episode_stem = f"{seriesTitle} S{SeasonNum:02d}E{EpisodeNum:02d}{EpisodeName}{partName}"
+                episode_stem = seriesTitle
+                episode_stem += f" S{SeasonNum:02d}E{EpisodeNum:02d}"
+                if ExtendEpisodeNum > 0:
+                    episode_stem += f"-E{ExtendEpisodeNum:02d}"
+                episode_stem += f"{EpisodeName}{partName}"
+                episode_stem = episode_stem.strip()
                 
                 print(textwrap.dedent(f"""
                 Old Name: {Movie.stem}
@@ -963,6 +987,7 @@ class DirectoryManager:
                 user_res = input(textwrap.dedent("""\
                 s - Season #
                 e - Episode #
+                t - extend episode #
                 p - Part #
                 x - Skip #
                 n - Name <name>
@@ -992,6 +1017,16 @@ class DirectoryManager:
                     else:
                         EpisodeNum += 1
 
+                # Episode #
+                elif res1 == "t":
+                    if len(user_res) > 1:
+                        ExtendEpisodeNum = int(res2)
+                    else:
+                        if ExtendEpisodeNum == 0:
+                            ExtendEpisodeNum = EpisodeNum + 1
+                        else:
+                            ExtendEpisodeNum += 1
+
                 # Part #
                 elif res1 == "p":
                     if len(user_res) > 1:
@@ -1001,7 +1036,12 @@ class DirectoryManager:
 
                 # Episode <name>
                 elif res1 == "n":
-                    EpisodeName = " " + res2
+                    if len(user_res) > 1:
+                        fillName = True
+                        EpisodeName = " " + res2.strip()
+                    else:
+                        fillName = False
+                        EpisodeName = ""
 
                 # Skip #
                 elif res1 == "x":
@@ -1040,6 +1080,10 @@ class DirectoryManager:
                 
                 if partNum == 0:
                     EpisodeNum += 1
+
+                if ExtendEpisodeNum > 0:
+                    EpisodeNum = 1 + ExtendEpisodeNum
+                    ExtendEpisodeNum = 0
         # End Movie Loop
 
         print("End of files!")
@@ -1120,7 +1164,12 @@ class DirectoryManager:
                             f.write(f"FFMPEG Error {str(relativePath)}\n")
                         print(f"Encoding {movie.name} encountered an error. Moving to failure dir")
                         badPath = G_PathHelper.BadRaw / relativePath
-                        movie.replace(badPath)
+                        badPath.parent.mkdir(parents=True, exist_ok=True)
+                        try:
+                            movie.replace(badPath)
+                        except Exception as e:
+                            print(e)
+
                     return True
                 
         
@@ -1140,7 +1189,11 @@ class DirectoryManager:
                             f.write(f"FFMPEG Error {str(relativePath)}\n")
                         print(f"Encoding {audio.name} encountered an error. Moving to failure dir")
                         badPath = G_PathHelper.BadRaw / relativePath
-                        audio.replace(badPath)
+                        badPath.parent.mkdir(parents=True, exist_ok=True)
+                        try:
+                            audio.replace(badPath)
+                        except Exception as e:
+                            print(e)
                     return True
         print(f"Finished encoding {self.DirectoryPath.name}")
 
@@ -1204,6 +1257,7 @@ def main():
                     if dirManager.EditMovieSeriesInfo():
                         dirManager.SortEpisodesIntoSeasons()
                         dirManager.AskForMetadataID()
+                    RemoveEmptyDirs(G_PathHelper.StagingPath)
 
 
         if userInput == "3":
@@ -1220,6 +1274,7 @@ def main():
                 if dirManager.EditMovieSeriesInfo():
                     dirManager.SortEpisodesIntoSeasons()
                     dirManager.AskForMetadataID()
+                RemoveEmptyDirs(G_PathHelper.StagingPath)
 
         if userInput == "4":
             # [3] Finalizing (Copy Processed folder to Library)
@@ -1228,6 +1283,8 @@ def main():
                 library_path = G_PathHelper.GetLibraryDir()
                 print("Copying. . .")
                 copied_path = staged_path.copy_into(library_path)
+                RemoveEmptyDirs(copied_path)
+                RemoveEmptyDirs(G_PathHelper.StagingPath)
 
         if userInput == "0":
             crdl_manager = DirectoryManager(G_PathHelper.CRDL_Path, G_PathHelper.CRDL_Path)
