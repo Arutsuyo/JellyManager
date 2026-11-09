@@ -9,6 +9,7 @@ import ffmpeg
 import time
 import tomllib
 from functools import wraps
+import psutil
 
 def load_config():
     with open("config.toml", "rb") as f:
@@ -487,7 +488,7 @@ def GetFFMPEGArgs(mediaPath:Path):
                     tags = stream['tags']
                     filename_tag = Path(tags['filename'])
                     codec_name = filename_tag.suffix[1:] # Remove '.'
-                if codec_name == 'ttf' or codec_name == 'otf':
+                if codec_name.lower() == 'ttf' or codec_name.lower() == 'otf':
                     stream_map.extend(["-map", f"0:{stream["index"]}"])
                     if not detect_attachment:
                         detect_attachment = True
@@ -600,6 +601,20 @@ def ExecFFMPEG(sourceFile:Path, targetFile:Path) -> tuple[bool, bool]:
         errors="replace"
     )
 
+    assert process.stdin is not None 
+
+    ps_proc = psutil.Process(process.pid)
+    # 3. Set the CPU priority
+    if psutil.WINDOWS:
+        # Options: BELOW_NORMAL_PRIORITY_CLASS, NORMAL_PRIORITY_CLASS, 
+        # ABOVE_NORMAL_PRIORITY_CLASS, HIGH_PRIORITY_CLASS, IDLE_PRIORITY_CLASS
+        ps_proc.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)
+    else:
+        # Unix niceness ranges from -20 (highest) to 19 (lowest)
+        # Setting a negative value (higher priority) usually requires root/sudo
+        ps_proc.nice(10) 
+
+    
     try:
         while process.poll() is None:
             parseFFMPEGOutput(process)
@@ -609,7 +624,8 @@ def ExecFFMPEG(sourceFile:Path, targetFile:Path) -> tuple[bool, bool]:
         stop_flag = True
         print()
         print("Processing FFMPEG Interrupt. . .", flush=True)
-        process.kill()
+        process.stdin.write("q")
+        
 
     except CorruptException as e:
         with open(G_PathHelper.LogBadMediaFile, mode="+a", encoding="utf-8") as f:
@@ -642,7 +658,7 @@ def ExecFFMPEG(sourceFile:Path, targetFile:Path) -> tuple[bool, bool]:
             send2trash(targetFile)
         except FileNotFoundError:
             PathHelper.LogBadMediaFile
-            with open(PathHelper.LogBadMediaFile, "+a") as f: f.write(f"File failed to write: {targetFile}")
+            with open(PathHelper.LogBadMediaFile, "+a") as f: f.write(f"File failed to write: {targetFile}\n")
 
     return (ret_code == 0), stop_flag
 
@@ -940,6 +956,17 @@ class DirectoryManager:
         Finish = False
         fillName = True
 
+        stripList = [
+            ".1080p",
+            ".720p",
+            ".WEBRip",
+            ".AMZN",
+            ".x264",
+            ".x265",
+            ".h264",
+            ".h265",
+        ]
+
         for Movie in self.MovieFiles:
             # Check if the file is a .webm file
             if skipCount > 0:
@@ -954,11 +981,16 @@ class DirectoryManager:
 
             # Construct the full file paths
             episode_stem = Movie.stem
+            indicies = [episode_stem.find(sub) for sub in stripList if episode_stem.find(sub) != -1]
+            if indicies:
+                idx = min(indicies)
+                episode_stem = episode_stem[:idx]
+            
 
             _, _, match = ExtractSeasonEpisodeNum(episode_stem)
             if match:
                 if len(episode_stem) > match.end() + 2 and fillName:
-                    EpisodeName = " " + episode_stem[match.end():].strip()
+                    EpisodeName = " " + episode_stem[match.end():].replace(".", " ").strip()
         
             while True:
                 res1 = None
@@ -1069,15 +1101,19 @@ class DirectoryManager:
             if skip:
                 print(f"Skipping: {Movie.stem}")
             else:
-                # Rename the file
-                Movie.rename(Movie.with_stem(episode_stem))
+                try:
+                    # Rename the file
+                    Movie.rename(Movie.with_stem(episode_stem))
 
-                #check matching file
-                for match_ext in self.Match_Exts:
-                    match = Movie.with_suffix(match_ext)
-                    if match.exists():
-                        match.rename(match.with_stem(episode_stem))
-                
+                    #check matching file
+                    for match_ext in self.Match_Exts:
+                        match = Movie.with_suffix(match_ext)
+                        if match.exists():
+                            match.rename(match.with_stem(episode_stem))
+                    
+                except OSError:
+                    print("OSError: Invalid Name. Skipping file renaming.")
+
                 if partNum == 0:
                     EpisodeNum += 1
 
